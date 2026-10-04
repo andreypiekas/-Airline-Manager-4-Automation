@@ -126,8 +126,8 @@ jobs:
         AM4_INPUT_MODE: ${{ inputs.departure_mode || 'production' }}
         AM4_INPUT_EXECUTE: ${{ inputs.departure_mode == 'production' && 'true' || 'false' }}
         AM4_INPUT_MAX_DEPARTURES: ${{ inputs.max_individual_departures }}
-        AM4_REPOSITORY_EXECUTE: ${{ vars.EXECUTE_INDIVIDUAL }}
-        AM4_REPOSITORY_MAX_DEPARTURES: ${{ vars.MAX_INDIVIDUAL_DEPARTURES }}
+        AM4_REPOSITORY_EXECUTE: ${{ vars.EXECUTE_INDIVIDUAL || 'true' }}
+        AM4_REPOSITORY_MAX_DEPARTURES: ${{ vars.MAX_INDIVIDUAL_DEPARTURES || '20' }}
       run: node scripts/resolve-departure-settings.cjs
 
     - name: Executar bot Airline Manager 4
@@ -172,7 +172,7 @@ jobs:
         MAX_CO2_PURCHASE_PER_RUN: ${{ vars.MAX_CO2_PURCHASE_PER_RUN }}
         REPAIR_WEAR: ${{ vars.REPAIR_WEAR || '30' }}
         HOURS_CHECK: ${{ vars.HOURS_CHECK || '20' }}
-        INCREASE_AIRLINE_REPUTATION: ${{ vars.INCREASE_AIRLINE_REPUTATION || 'false' }}
+        INCREASE_AIRLINE_REPUTATION: ${{ vars.INCREASE_AIRLINE_REPUTATION || 'true' }}
         CAMPAIGN_TYPE: ${{ vars.CAMPAIGN_TYPE || '1' }}
         CAMPAIGN_DURATION: ${{ vars.CAMPAIGN_DURATION || '4' }}
         ENABLE_FUEL: ${{ inputs.departure_mode == 'simulation' && 'false' || (vars.ENABLE_FUEL || 'true') }}
