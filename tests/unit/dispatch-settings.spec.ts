@@ -19,7 +19,7 @@ for(const [index,env] of [{AM4_INPUT_MODE:'automatic'},{AM4_REPOSITORY_EXECUTE:'
  test(`invalid settings fail before any game login case ${index}`,()=>expect(()=>resolveDepartureSettings(env)).toThrow());
 test('both workflows wire repository variables into the shared resolver and use its outputs',async()=>{
  for(const name of ['playwright.yml','individual-departures.yml']){
-  const s=await readFile('.github/workflows/'+name,'utf8');expect(s).toContain('AM4_REPOSITORY_EXECUTE: ${{ vars.EXECUTE_INDIVIDUAL }}');expect(s).toContain('AM4_REPOSITORY_MAX_DEPARTURES: ${{ vars.MAX_INDIVIDUAL_DEPARTURES }}');expect(s).toContain('DEMAND_DRY_RUN: ${{ steps.departure_settings.outputs.dry_run }}');expect(s).toContain('DEMAND_MAX_DEPARTURES_PER_RUN: ${{ steps.departure_settings.outputs.max_departures }}');expect(s).toContain('group: airline-manager-4-main');expect(s).not.toContain('\n  push:');
+  const s=await readFile('.github/workflows/'+name,'utf8');expect(s).toContain("AM4_REPOSITORY_EXECUTE: ${{ vars.EXECUTE_INDIVIDUAL || 'true' }}");expect(s).toContain("AM4_REPOSITORY_MAX_DEPARTURES: ${{ vars.MAX_INDIVIDUAL_DEPARTURES || '20' }}");expect(s).toContain('DEMAND_DRY_RUN: ${{ steps.departure_settings.outputs.dry_run }}');expect(s).toContain('DEMAND_MAX_DEPARTURES_PER_RUN: ${{ steps.departure_settings.outputs.max_departures }}');expect(s).toContain('group: airline-manager-4-main');expect(s).not.toContain('\n  push:');
  }
 });
 test('resolver CLI produces safe Action outputs and explicit operational-mode log without credentials',async()=>{
