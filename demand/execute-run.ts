@@ -1,0 +1,69 @@
+import { Page } from '@playwright/test';
+import { mkdir,open,rename,writeFile,readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { readDemandConfig } from './config';
+import { DemandConfig } from './types';
+import { IndividualDepartureExecutor, ExecutionReport } from './executor';
+import { PlaywrightDeparturePort } from './departure-port';
+import { optimizationConfig } from '../optimization/report';
+import { appendConfirmedDepartures,appendDemandHoldObservations,appendUncertainDepartures,readUnresolvedDepartureKeys } from '../optimization/return-journal';
+import { loadAdaptiveDemandThresholds } from './adaptive-threshold';
+
+async function verifiedFuelHoldingFromRun(directory:string):Promise<number|undefined>{
+  try{
+    const report=JSON.parse(await readFile(join(directory,'supply-report.json'),'utf8'));
+    const fuel=(report?.entries||[]).find((e:any)=>e?.kind==='fuel');
+    if(!fuel||fuel.status==='unknown'||fuel.status==='unavailable')return undefined;
+    const snapshot=fuel.status==='purchased'?fuel.after:fuel.before;
+    const holding=snapshot?.holding;
+    return Number.isSafeInteger(holding)&&holding>=0?holding:undefined;
+  }catch{return undefined;}
+}
+
+export function executionEnvironment(config:DemandConfig,env:NodeJS.ProcessEnv=process.env){
+  const maxDepartures=Number(env.DEMAND_MAX_DEPARTURES_PER_RUN||'1');
+  if(!Number.isSafeInteger(maxDepartures)||maxDepartures<1||maxDepartures>20)throw Error('DEMAND_EXECUTION_LIMIT_INVALID');
+  if(!config.enabled||!config.failSafe)throw Error('DEMAND_EXECUTION_DISABLED');
+  if(!config.dryRun&&(config.poolScope!=='airport-pair'||env.DEMAND_EXECUTION_ACK!=='individual-return-legs-v1'||env.GITHUB_ACTIONS!=='true'||
+    env.GITHUB_REPOSITORY!=='andreypiekas/Airline-Manager-4'||!/^[1-9]\d*$/.test(env.GITHUB_RUN_ID||'')||
+    env.GITHUB_RUN_ATTEMPT!=='1'))throw Error('DEMAND_REAL_EXECUTION_CONTEXT_INVALID_OR_RERUN');
+  const rawDeadline=(env.DEMAND_EXECUTION_MUTATION_DEADLINE_EPOCH_MS||'').trim();
+  const mutationDeadlineEpochMs=rawDeadline?Number(rawDeadline):undefined;
+  if(mutationDeadlineEpochMs!==undefined&&(!Number.isSafeInteger(mutationDeadlineEpochMs)||mutationDeadlineEpochMs<=0))throw Error('DEMAND_EXECUTION_DEADLINE_INVALID');
+  return {dryRun:config.dryRun,maxDepartures,mutationDeadlineEpochMs};
+}
+export async function runDemandExecution(page:Page,config=readDemandConfig(),env:NodeJS.ProcessEnv=process.env,directory='test-results/demand'){
+  const settings=executionEnvironment(config,env),optimization=optimizationConfig(env);
+  const blockedDepartureKeys=optimization.returnJournal?await readUnresolvedDepartureKeys(optimization.returnJournal.directory,optimization.returnJournal.scope):new Set<string>();
+  await mkdir(directory,{recursive:true});
+  // Exclusive marker survives repeated calls in this runner; Actions rejects every real rerun attempt.
+  const marker=await open(join(directory,'individual-execution.started'),'wx');await marker.close();
+  const safe=(s:string)=>s.replace(/[|\r\n<>]/g,' ');
+  const save=async(report:ExecutionReport)=>{
+    const target=join(directory,'execution-report.json');
+    await writeFile(target+'.tmp',JSON.stringify(report,null,2)+'\n');await rename(target+'.tmp',target);
+    await writeFile(join(directory,'execution-report.md'),[
+      `# Decolagens individuais — ${report.dryRun?'simulacao':'execucao real'}`,'',
+      `Escopo: trechos da rota existente que saem da propria base ou retornam para ela. Avaliadas: ${report.summary.evaluated}; decolagens confirmadas: ${report.summary.departed}; simuladas: ${report.summary.simulated}; retidas: ${report.summary.held}; resultado incerto: ${report.summary.unknown}.`,'',
+      '| Aeronave | Trecho | Estado | Motivo |','| --- | --- | --- | --- |',
+      ...report.entries.map(e=>`| ${safe(e.registration)} | ${safe(e.from)} → ${safe(e.to)} | ${e.status} | ${safe(e.reason)} |`),'',
+      'A cobertura por demanda nao e previsao de ocupacao. Embarque observado consta no JSON apos a decolagem.',
+      'Na propria base, a aeronave pode decolar pela rota atual quando identidade, controle nativo e demanda fresca estiverem validados. Rotas e tarifas continuam sem alteracoes. No workflow principal, abastecimento e documentado separadamente em supply-report.json.',''
+    ].join('\n'));
+  };
+  const adaptive=optimization.returnJournal?await loadAdaptiveDemandThresholds(optimization.returnJournal.directory,optimization.returnJournal.scope,config.minPercentage):new Map();
+  const fuelHoldingLbsAtRunStart=!settings.dryRun?await verifiedFuelHoldingFromRun(directory):undefined;
+  const report=await new IndividualDepartureExecutor(new PlaywrightDeparturePort(page),config,{...settings,
+    aircraftOrigins:optimization.aircraftOrigins,airlineBases:optimization.airlineBases,blockedDepartureKeys,fuelHoldingLbsAtRunStart},save,adaptive).run();
+  console.log('[IndividualDepartures] '+JSON.stringify(report.summary));
+  if(!settings.dryRun&&optimization.returnJournal){
+    const held=await appendDemandHoldObservations(optimization.returnJournal.directory,optimization.returnJournal.scope,env.GITHUB_RUN_ID||'',report);
+    console.log('[History] Holds de demanda observados acrescentados: '+held+'.');
+    const added=await appendConfirmedDepartures(optimization.returnJournal.directory,optimization.returnJournal.scope,env.GITHUB_RUN_ID||'',report);
+    console.log('[History] Decolagens confirmadas acrescentadas: '+added+'.');
+    const uncertain=await appendUncertainDepartures(optimization.returnJournal.directory,optimization.returnJournal.scope,env.GITHUB_RUN_ID||'',report);
+    console.log('[History] Tentativas incertas bloqueadas acrescentadas: '+uncertain+'.');
+  }
+  if(report.halted)throw Error('DEMAND_EXECUTION_HALTED_UNKNOWN_RESULT_NO_RETRY');
+  return report;
+}
