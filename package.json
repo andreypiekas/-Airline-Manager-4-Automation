@@ -1,7 +1,7 @@
 {
-  "name": "airline-manager-bot",
-  "version": "1.0.0",
-  "description": "",
+  "name": "airline-manager-4-automation",
+  "version": "2.0.0",
+  "description": "Fail-closed Playwright automation for Airline Manager 4 with demand, route review, pricing and persistent operational history.",
   "main": "index.js",
   "scripts": {
     "test": "playwright test -c playwright.unit.config.ts",
@@ -11,8 +11,8 @@
     "build:state": "tsc -p tsconfig.state.json"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Andrey Gheno Piekas",
+  "license": "MIT",
   "devDependencies": {
     "@playwright/test": "^1.44.0",
     "@types/node": "^20.12.12",
@@ -20,5 +20,9 @@
   },
   "dependencies": {
     "dotenv": "^16.4.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andreypiekas/Airline-Manager-4-Automation.git"
   }
 }

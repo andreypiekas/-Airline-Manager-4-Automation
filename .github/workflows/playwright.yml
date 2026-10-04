@@ -166,8 +166,8 @@ jobs:
         EMAIL: ${{ secrets.EMAIL }}
         PASSWORD: ${{ secrets.PASSWORD }}
         MIN_CASH_RESERVE: ${{ vars.MIN_CASH_RESERVE || '0' }}
-        MAX_FUEL_PRICE: ${{ vars.MAX_FUEL_PRICE }}
-        MAX_CO2_PRICE: ${{ vars.MAX_CO2_PRICE }}
+        MAX_FUEL_PRICE: ${{ vars.MAX_FUEL_PRICE || '550' }}
+        MAX_CO2_PRICE: ${{ vars.MAX_CO2_PRICE || '120' }}
         MAX_FUEL_PURCHASE_PER_RUN: ${{ vars.MAX_FUEL_PURCHASE_PER_RUN }}
         MAX_CO2_PURCHASE_PER_RUN: ${{ vars.MAX_CO2_PURCHASE_PER_RUN }}
         REPAIR_WEAR: ${{ vars.REPAIR_WEAR || '30' }}

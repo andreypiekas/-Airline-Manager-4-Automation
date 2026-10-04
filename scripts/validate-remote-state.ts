@@ -5,7 +5,8 @@ import { GitHubReturnState } from '../optimization/github-state';
 /** Real GitHub transport, exclusively synthetic test scope; never contacts the game. */
 export async function validateRemoteState(stage: 'seed'|'restore', env = process.env) {
   const scope=env.RETURN_JOURNAL_SCOPE || '';
-  if (env.GITHUB_REPOSITORY !== 'andreypiekas/Airline-Manager-4' || !/^ci-\d+-\d+$/.test(scope) || !env.GITHUB_TOKEN) throw new Error('SMOKE_CONFIG_INVALID');
+  const allowedRepositories=new Set(['andreypiekas/Airline-Manager-4-Automation','andreypiekas/-Airline-Manager-4-Automation']);
+  if (!allowedRepositories.has(env.GITHUB_REPOSITORY || '') || !/^ci-\d+-\d+$/.test(scope) || !env.GITHUB_TOKEN) throw new Error('SMOKE_CONFIG_INVALID');
   const options={repository:env.GITHUB_REPOSITORY,scope,token:env.GITHUB_TOKEN,directory:`.am4-state/smoke-${stage}`};
   const client=new GitHubReturnState(options);
   if(stage==='seed') await client.initialize();

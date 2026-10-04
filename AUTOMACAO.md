@@ -51,7 +51,7 @@ No fluxo legado, variaveis `ENABLE_*` omitidas equivalem a `true`, preservando o
 
 Configure cron-job.org:
 - Metodo: `POST`
-- URL: `https://api.github.com/repos/andreypiekas/Airline-Manager-4/actions/workflows/playwright.yml/dispatches`
+- URL: `https://api.github.com/repos/andreypiekas/Airline-Manager-4-Automation/actions/workflows/playwright.yml/dispatches`
 - Headers: `Authorization: Bearer <SEU_TOKEN>`, `Accept: application/vnd.github+json`, `Content-Type: application/json`
 - Body: `{"ref":"main","inputs":{"aktifkan_random_delay":"false","paksa_simpan_video":"false"}}`
 - Intervalo desejado: 30 minutos.
@@ -66,7 +66,7 @@ O workflow tenta enviar uma mensagem no Telegram ao final, mas essa notificacao 
 
 ## Limites
 
-Este repositorio ja automatiza as operacoes de combustivel/CO2, manutencao, campanhas e decolagens. Compra automatica de novas aeronaves, abertura de rotas, alteracao de precos e outras operacoes de investimento **nao foram habilitadas**: exigem seletores testados e limites financeiros especificos para evitar gastos irreversiveis.
+Este repositorio ja automatiza as operacoes de combustivel/CO2, manutencao, campanhas e decolagens. Compra automatica de novas aeronaves permanece fora do escopo. Revisao de rotas e pricing PAX possuem executores fail-closed com confirmacao posterior e quarentena em resultado incerto.
 
 Nao existe garantia de ausencia de banimento, disponibilidade 24h, sucesso de login ou horarios exatos de execucao. O uso do bot pode contrariar as regras do jogo.
 
