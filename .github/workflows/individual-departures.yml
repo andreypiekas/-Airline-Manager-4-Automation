@@ -48,8 +48,8 @@ jobs:
           AM4_INPUT_MODE: ${{ inputs.departure_mode }}
           AM4_INPUT_EXECUTE: ${{ inputs.execute }}
           AM4_INPUT_MAX_DEPARTURES: ${{ inputs.max_departures }}
-          AM4_REPOSITORY_EXECUTE: ${{ vars.EXECUTE_INDIVIDUAL }}
-          AM4_REPOSITORY_MAX_DEPARTURES: ${{ vars.MAX_INDIVIDUAL_DEPARTURES }}
+          AM4_REPOSITORY_EXECUTE: ${{ vars.EXECUTE_INDIVIDUAL || 'true' }}
+          AM4_REPOSITORY_MAX_DEPARTURES: ${{ vars.MAX_INDIVIDUAL_DEPARTURES || '20' }}
         run: node scripts/resolve-departure-settings.cjs
 
       - name: Executar somente o executor individual
