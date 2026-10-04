@@ -1,0 +1,13 @@
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+.env
+
+
+.am4-run.lock/
+
+.am4-state/
+
+.am4-tools/
