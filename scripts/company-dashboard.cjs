@@ -6,7 +6,7 @@ const safe=s=>String(s??'').replace(/[|\r\n<>]/g,' ');
 
 function build(dir='test-results/demand',logPath='test-results/bot.log',journalPath='.am4-state/github/return-journal.json'){
   const demand=read(dir,'demand-report.json'),fleet=read(dir,'fleet-observations.json'),execution=read(dir,'execution-report.json'),
-    routeExecution=read(dir,'route-execution.json'),candidateData=read(dir,'candidate-data.json'),supplies=read(dir,'supply-report.json'),pricing=read(dir,'pricing-execution.json'),modules=read(dir,'operational-modules.json'),
+    routeExecution=read(dir,'route-execution.json'),routeResearch=read(dir,'route-research.json'),candidateData=read(dir,'candidate-data.json'),supplies=read(dir,'supply-report.json'),pricing=read(dir,'pricing-execution.json'),modules=read(dir,'operational-modules.json'),
     uiHealth=read(dir,'ui-health.json'),challenge=read(dir,'challenge-detected.json'),semi=read(dir,'semi-automatic-summary.json'),runBudget=read(dir,'run-time-budget.json'),ownedBases=read(dir,'owned-airline-bases.json');
   const log=(()=>{try{return fs.readFileSync(logPath,'utf8')}catch{return ''}})();
   const journal=readPath(journalPath),events=Array.isArray(journal?.events)?journal.events:[];
@@ -61,6 +61,12 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
         hold:(candidateData?.routeDecisions||[]).filter(x=>x?.decision==='hold').length,
         wouldReroute:(candidateData?.routeDecisions||[]).filter(x=>x?.decision==='would_reroute').length,
         unavailable:(candidateData?.routeDecisions||[]).filter(x=>x?.decision==='unavailable').length
+      },
+      demandTriggered:{
+        eligible:routeResearch?.queueRotation?.demandTriggeredEligible??0,
+        observed:(routeResearch?.aircraft||[]).filter(a=>a?.trigger==='demand_insufficient'&&a?.status==='observed').length,
+        deferred:(routeResearch?.aircraft||[]).filter(a=>a?.trigger==='demand_insufficient'&&a?.status==='deferred_limit').length,
+        unavailable:(routeResearch?.aircraft||[]).filter(a=>a?.trigger==='demand_insufficient'&&['unavailable','journal_unavailable','data_unavailable','origin_unavailable'].includes(a?.status)).length
       },
       originUnavailable:aircraft.filter(a=>!a.operationalOrigin&&a.originResolution?.source==='unavailable').length},
     pricing:{evaluated:pricing?.summary?.evaluated??semi?.fleet?.seen??null,adjusted:pricing?.summary?.adjusted??null,
