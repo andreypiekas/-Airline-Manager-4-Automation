@@ -300,26 +300,55 @@ test('All Operations', async ({ page }) => {
       throw new Error('[Demand] Fleet/Routes nao abriu apos recuperacao da interface.');
     }
     const simulation = await runDemandSimulationDetailed(page, demandConfig);
+    let routeExecutionReport: Awaited<ReturnType<typeof runRouteExecution>> | null = null;
+    let pricingExecutionReport: Awaited<ReturnType<typeof runTicketPricingExecution>> | null = null;
     if (process.env.AUTOMATION_MODE === 'semi-automatic') {
       await writeSemiAutomaticSummary(simulation);
       console.log('[SemiAutomatic] Analise concluida. Nenhuma mutacao no jogo foi autorizada; execucao real exige confirmacao manual.');
     }
     if (!demandConfig.dryRun && moduleEnabled('ENABLE_ROUTE_EXECUTION', false)
       && phaseAllowed('route-execution',phaseBudgetsMs.routeExecution)) {
-      await test.step('Reroute conservador por aeronave', async () => await runRouteExecution(page, simulation,{...process.env,ROUTE_EXECUTION_MUTATION_DEADLINE_EPOCH_MS:String(phaseDeadlineEpochMs)}));
+      routeExecutionReport = await test.step(
+        'Reroute conservador por aeronave',
+        async () => await runRouteExecution(page, simulation,{
+          ...process.env,
+          ROUTE_EXECUTION_MUTATION_DEADLINE_EPOCH_MS:String(phaseDeadlineEpochMs)
+        })
+      );
     }
     if (!demandConfig.dryRun && moduleEnabled('ENABLE_TICKET_PRICING_EXECUTION', false)
       && phaseAllowed('ticket-pricing',phaseBudgetsMs.ticketPricing)) {
-      await test.step('Ajustar tarifas por rota', async () => await runTicketPricingExecution(page,{...process.env,TICKET_PRICING_MUTATION_DEADLINE_EPOCH_MS:String(phaseDeadlineEpochMs)}));
+      pricingExecutionReport = await test.step(
+        'Ajustar tarifas por rota',
+        async () => await runTicketPricingExecution(page,{
+          ...process.env,
+          TICKET_PRICING_MUTATION_DEADLINE_EPOCH_MS:String(phaseDeadlineEpochMs)
+        })
+      );
     }
     if (!demandConfig.dryRun && moduleEnabled('ENABLE_DEPART')
       && phaseAllowed('departures',phaseBudgetsMs.departures)) {
+      const reroutedAircraftIds=new Set(
+        (routeExecutionReport?.entries||[]).filter(e=>e.status==='rerouted').map(e=>e.aircraftId)
+      );
+      const pricingVerifiedAircraftIds=new Set(
+        (pricingExecutionReport?.entries||[])
+          .filter(e=>e.status==='adjusted'||e.status==='unchanged')
+          .map(e=>e.aircraftId)
+      );
+      const postReroutePricingBlockedAircraftIds=new Set(
+        [...reroutedAircraftIds].filter(id=>!pricingVerifiedAircraftIds.has(id))
+      );
+      if(postReroutePricingBlockedAircraftIds.size){
+        console.warn('[Departure] Reroute confirmado sem pricing fresco confirmado; aeronaves em HOLD: '+
+          [...postReroutePricingBlockedAircraftIds].join(','));
+      }
       await runDemandExecution(page,demandConfig,{
         ...process.env,
         CAMPAIGN_GATE_REQUIRED: campaignRequired ? 'true' : 'false',
         CAMPAIGN_GATE_VERIFIED: campaignVerifiedForDeparture ? 'true' : 'false',
         DEMAND_EXECUTION_MUTATION_DEADLINE_EPOCH_MS:String(departureMutationDeadlineEpochMs)
-      },'test-results/demand');
+      },'test-results/demand',{postReroutePricingBlockedAircraftIds});
     }
     return;
   }
