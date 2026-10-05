@@ -269,7 +269,7 @@ test('All Operations', async ({ page }) => {
     }
     if (!demandConfig.dryRun && moduleEnabled('ENABLE_DEPART')
       && phaseAllowed('departures',phaseBudgetsMs.departures)) {
-      await runDemandExecution(page,demandConfig,{...process.env,DEMAND_EXECUTION_MUTATION_DEADLINE_EPOCH_MS:String(departureMutationDeadlineEpochMs)},'test-results/demand',simulation.optimization.airlineBases);
+      await runDemandExecution(page,demandConfig,{...process.env,DEMAND_EXECUTION_MUTATION_DEADLINE_EPOCH_MS:String(departureMutationDeadlineEpochMs)},'test-results/demand');
     }
     return;
   }
