@@ -24,9 +24,16 @@ Resumo técnico da branch `main`.
 | UI Health | Produção |
 | Dashboard executivo | Produção |
 | Telegram | Implementado |
+| Execução a partir de forks | Suportada |
 | Compra automática de aeronaves | Fora do escopo |
 
 ## Arquitetura atual
+
+### Forks
+
+Produção pode ser executada no fork de cada usuário. Os guards validam o contexto real do GitHub Actions, o run e a primeira tentativa, sem exigir o nome do repositório original.
+
+Secrets e Variables não são compartilhados com o upstream e devem ser configurados no fork.
 
 ### Departures
 
