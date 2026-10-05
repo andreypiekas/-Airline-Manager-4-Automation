@@ -110,6 +110,13 @@ jobs:
       # Xvfb fornece uma tela virtual para o navegador
       run: sudo apt-get update && sudo apt-get install -y xvfb
 
+    - name: Garantir estado persistente do repositorio
+      if: vars.ENABLE_DEMAND_MANAGER != 'false' && steps.current_head.outputs.stale != 'true'
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        RETURN_JOURNAL_SCOPE: ${{ vars.RETURN_JOURNAL_SCOPE || 'am4-prod' }}
+      run: node .am4-tools/optimization/github-state.js ensure
+
     - name: Restaurar registro persistente de retornos
       id: state_restore
       if: vars.ENABLE_DEMAND_MANAGER != 'false' && steps.current_head.outputs.stale != 'true'
