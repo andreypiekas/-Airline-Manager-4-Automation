@@ -11,7 +11,7 @@ test('real route execution requires exact one-shot GitHub production acknowledge
   const env:any={
     ENABLE_ROUTE_EXECUTION:'true',ROUTE_EXECUTION_ACK:'native-direct-reroute-v1',
     ROUTE_MAX_REROUTES_PER_RUN:'1',DEMAND_MAX_AGE_SECONDS:'300',
-    GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'andreypiekas/Airline-Manager-4',
+    GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'andreypiekas/Airline-Manager-4-Automation',
     GITHUB_RUN_ID:'123',GITHUB_RUN_ATTEMPT:'1',DEMAND_DRY_RUN:'false',ENABLE_ROUTE_OPTIMIZER:'true'
   };
   expect(routeExecutionSettings(env)).toEqual({enabled:true,maxReroutes:1,maxAgeSeconds:300});

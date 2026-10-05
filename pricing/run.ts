@@ -23,7 +23,7 @@ export function pricingExecutionSettings(env:NodeJS.ProcessEnv=process.env):Pric
     !Number.isSafeInteger(maxAgeSeconds)||maxAgeSeconds<1||
     (mutationDeadlineEpochMs!==undefined&&(!Number.isSafeInteger(mutationDeadlineEpochMs)||mutationDeadlineEpochMs<=0)))throw new Error('PRICING_EXECUTION_CONFIG_INVALID');
   if(enabled==='true'&&(env.TICKET_PRICING_EXECUTION_ACK!=='native-route-price-save-v1'||env.GITHUB_ACTIONS!=='true'||
-    env.GITHUB_REPOSITORY!=='andreypiekas/Airline-Manager-4'||!/^[1-9]\d*$/.test(env.GITHUB_RUN_ID||'')||
+    env.GITHUB_REPOSITORY!=='andreypiekas/Airline-Manager-4-Automation'||!/^[1-9]\d*$/.test(env.GITHUB_RUN_ID||'')||
     env.GITHUB_RUN_ATTEMPT!=='1'))throw new Error('PRICING_REAL_EXECUTION_CONTEXT_INVALID_OR_RERUN');
   return {enabled:enabled==='true',maxAdjustments,maxAgeSeconds,...(mutationDeadlineEpochMs===undefined?{}:{mutationDeadlineEpochMs})};
 }

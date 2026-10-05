@@ -5,7 +5,7 @@ import {join} from 'node:path';
 import {SupplyPort,parseSupplyText,purchaseCallback} from '../../supplies/port';
 import {planPurchase,supplyConfig} from '../../supplies/policy';
 import {runSupplies} from '../../supplies/run';
-const env={ENABLE_DEMAND_MANAGER:'true',DEMAND_FAIL_SAFE:'true',DEMAND_POOL_SCOPE:'airport-pair',DEMAND_EXECUTION_ACK:'individual-return-legs-v1',GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'andreypiekas/Airline-Manager-4',GITHUB_RUN_ID:'123',GITHUB_RUN_ATTEMPT:'1',MAX_FUEL_PRICE:'550',MAX_CO2_PRICE:'120'};
+const env={ENABLE_DEMAND_MANAGER:'true',DEMAND_FAIL_SAFE:'true',DEMAND_POOL_SCOPE:'airport-pair',DEMAND_EXECUTION_ACK:'individual-return-legs-v1',GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'andreypiekas/Airline-Manager-4-Automation',GITHUB_RUN_ID:'123',GITHUB_RUN_ATTEMPT:'1',MAX_FUEL_PRICE:'550',MAX_CO2_PRICE:'120'};
 async function fixture(page:Page,variant=''){
  await page.route('**/*',async r=>{
   const u=new URL(r.request().url());
