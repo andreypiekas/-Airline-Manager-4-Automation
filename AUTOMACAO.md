@@ -1,6 +1,6 @@
 # Operação do bot
 
-Guia rápido para executar o **Airline Manager 4 Automation** no seu próprio fork. Para todos os parâmetros disponíveis, consulte [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+Guia rápido para executar o **Airline Manager 4 Automation** no seu próprio fork. Secrets e inputs estão em [docs/CONFIGURATION.md](docs/CONFIGURATION.md); Variables avançadas estão em [docs/VARIABLES.md](docs/VARIABLES.md).
 
 Instalação inicial, Secrets, Variables e cron-job.org: [docs/GITHUB_AND_CRON_SETUP.md](docs/GITHUB_AND_CRON_SETUP.md).
 
