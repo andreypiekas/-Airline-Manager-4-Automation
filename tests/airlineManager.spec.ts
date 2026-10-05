@@ -71,7 +71,10 @@ test('All Operations', async ({ page }) => {
       return !['false', '0', 'off', 'no'].includes(raw);
     };
 
-    const recordOperationalModule = (module:'maintenance'|'campaign',status:'started_observed'|'completed_observed'|'held_safe',evidence?:Record<string,unknown>) => {
+    const campaignRequired = moduleEnabled('ENABLE_CAMPAIGN');
+    let campaignVerifiedForDeparture = !campaignRequired;
+
+    const recordOperationalModule = (module:'maintenance'|'campaign',status:'started_observed'|'completed_observed'|'held_safe'|'verified_active'|'unverified',evidence?:Record<string,unknown>) => {
       const dir='test-results/demand',file=path.join(dir,'operational-modules.json');fs.mkdirSync(dir,{recursive:true});
       let current:any={schemaVersion:1};try{current=JSON.parse(fs.readFileSync(file,'utf8'));}catch{}
       current.schemaVersion=1;current[module]={status,observedAt:new Date().toISOString(),...(evidence?{evidence}: {})};
@@ -198,14 +201,15 @@ test('All Operations', async ({ page }) => {
       }
     };
 
-    const runDemandCampaign = async () => {
-      if (!moduleEnabled('ENABLE_CAMPAIGN')) {
-        console.log('[Configuracao] Campanhas automaticas desativadas.');
-        return;
+    const runDemandCampaign = async (): Promise<boolean> => {
+      if (!campaignRequired) {
+        console.log('[Configuracao] Campanhas automaticas desativadas; gate de campanha nao e exigido.');
+        campaignVerifiedForDeparture = true;
+        return true;
       }
       if (demandConfig.dryRun) {
         console.log('[Demand] Simulacao ativa: campanhas nao serao contratadas.');
-        return;
+        return false;
       }
 
       console.log('[Operacao] Verificando e contratando campanhas...');
@@ -213,16 +217,39 @@ test('All Operations', async ({ page }) => {
       const campaignUtils = new CampaignUtils(page);
       const campaignMenu = page.locator('div:nth-child(5) > #mapMaint > img');
 
-      await closeOpenPanel('abrir campanhas');
-      await GeneralUtils.moveAndClick(page, campaignMenu, 20000);
-      await page.getByRole('button', { name: ' Marketing' })
-        .waitFor({ state: 'visible', timeout: 15000 });
+      try {
+        await closeOpenPanel('abrir campanhas');
+        await GeneralUtils.moveAndClick(page, campaignMenu, 20000);
+        await page.getByRole('button', { name: /Marketing/i })
+          .waitFor({ state: 'visible', timeout: 15000 });
 
-      await campaignUtils.createCampaign();
-      await GeneralUtils.randomSleep(1500, 3000);
-      await closeOpenPanel('finalizar campanhas');
-      console.log('[Operacao] Campanhas automaticas finalizadas.');
-      recordOperationalModule('campaign','completed_observed');
+        const evidence = await campaignUtils.createCampaign();
+        await GeneralUtils.randomSleep(700, 1200);
+        await closeOpenPanel('finalizar campanhas');
+
+        campaignVerifiedForDeparture = evidence.allRequiredVerified;
+        if (evidence.allRequiredVerified) {
+          console.log('[Campaign] Todas as campanhas exigidas foram confirmadas como ativas.');
+          recordOperationalModule('campaign','verified_active',evidence as unknown as Record<string,unknown>);
+          return true;
+        }
+
+        console.warn('[Campaign] Campanha exigida nao foi confirmada; decolagens ficarao em HOLD.');
+        recordOperationalModule('campaign','unverified',evidence as unknown as Record<string,unknown>);
+        return false;
+      } catch (error) {
+        const reason=(error as Error)?.message || 'UNCLASSIFIED';
+        if(reason==='INTERACTIVE_CHALLENGE_DETECTED_STOP') throw error;
+        campaignVerifiedForDeparture=false;
+        console.warn('[Campaign] Validacao incompleta; decolagens ficarao em HOLD: '+reason);
+        recordOperationalModule('campaign','unverified',{
+          reason,
+          allRequiredVerified:false,
+          departureAuthorized:false
+        });
+        await closeOpenPanel('encerrar campanhas sem confirmacao').catch(()=>undefined);
+        return false;
+      }
     };
 
     await loginForReadOnlyCollection(page, process.env, 90000);
@@ -232,7 +259,16 @@ test('All Operations', async ({ page }) => {
     // mas nunca inicia uma fase cara quando ja nao existe janela conservadora para conclui-la.
     if (phaseAllowed('supplies',phaseBudgetsMs.supplies)) await runSupplies(page, demandConfig.dryRun);
     if (phaseAllowed('maintenance',phaseBudgetsMs.maintenance)) await test.step('Manutencao e reparos', runDemandMaintenance);
-    if (phaseAllowed('campaign',phaseBudgetsMs.campaign)) await test.step('Campanhas de marketing', runDemandCampaign);
+    if (phaseAllowed('campaign',phaseBudgetsMs.campaign)) {
+      await test.step('Campanhas de marketing', runDemandCampaign);
+    } else if (!demandConfig.dryRun && campaignRequired) {
+      campaignVerifiedForDeparture=false;
+      recordOperationalModule('campaign','unverified',{
+        reason:'RUN_TIME_BUDGET_EXHAUSTED_BEFORE_CAMPAIGN_VERIFICATION',
+        allRequiredVerified:false,
+        departureAuthorized:false
+      });
+    }
     if (!phaseAllowed('fleet-demand',phaseBudgetsMs.fleetDemand)) {
       console.warn('[Budget] Coleta Fleet/Demand nao iniciada; nenhuma fase mutavel posterior sera executada.');
       return;
@@ -278,7 +314,12 @@ test('All Operations', async ({ page }) => {
     }
     if (!demandConfig.dryRun && moduleEnabled('ENABLE_DEPART')
       && phaseAllowed('departures',phaseBudgetsMs.departures)) {
-      await runDemandExecution(page,demandConfig,{...process.env,DEMAND_EXECUTION_MUTATION_DEADLINE_EPOCH_MS:String(departureMutationDeadlineEpochMs)},'test-results/demand');
+      await runDemandExecution(page,demandConfig,{
+        ...process.env,
+        CAMPAIGN_GATE_REQUIRED: campaignRequired ? 'true' : 'false',
+        CAMPAIGN_GATE_VERIFIED: campaignVerifiedForDeparture ? 'true' : 'false',
+        DEMAND_EXECUTION_MUTATION_DEADLINE_EPOCH_MS:String(departureMutationDeadlineEpochMs)
+      },'test-results/demand');
     }
     return;
   }
