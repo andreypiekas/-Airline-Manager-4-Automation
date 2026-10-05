@@ -72,7 +72,8 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
     quarantines:{departure:uncertainDepartureKeys.size,route:uncertainRouteAircraftIds.size,pricingRoute:uncertainPricingRouteIds.size,supplyKinds:uncertainSupplyKinds.size},
     maintenance:{preventiveACheckRepairs:modules?.maintenance?.status??(log.includes('[Operacao] Manutencao automatica finalizada.')?'completed_observed':
       log.includes('[Operacao] Iniciando manutencao preventiva, A-checks e reparos...')?'started_observed':'not_observed'),
-      evidence:modules?.maintenance?.evidence??null},
+      evidence:modules?.maintenance?.evidence??null,
+      holdReason:modules?.maintenance?.status==='held_safe'?(modules?.maintenance?.evidence?.reason??'SAFE_HOLD'):null},
     campaign:{status:modules?.campaign?.status??(log.includes('[Operacao] Campanhas automaticas finalizadas.')?'completed_observed':
       log.includes('[Operacao] Verificando e contratando campanhas...')?'started_observed':'not_observed')},
     supplies:supply,
@@ -102,6 +103,7 @@ function markdown(d,states){
  if((d.departures.unknown||0)+(d.routes.unknown||0)+(d.pricing.unknown||0)>0)alerts.push('há resultado operacional incerto — nenhuma repetição automática');
  if(d.uiHealth.status!=='healthy'&&d.uiHealth.status!=='not_observed')alerts.push(`UI health: ${d.uiHealth.status}`);
  if(d.challenge?.detected)alerts.push('CAPTCHA/challenge detectado — execução interrompida sem tentativa de contorno');
+ if(d.maintenance?.preventiveACheckRepairs==='held_safe')alerts.push(`manutenção em HOLD seguro: ${d.maintenance.holdReason||'motivo não informado'}`);
  const lines=['# Airline Manager 4 — relatório operacional','',
   `> Run **#${d.run?.number||'n/d'}** · **${runStatus}** · modo **${mode}** · SHA \`${sha}\` · ${safe(d.generatedAt)}`,
   d.run?.url?`> [Abrir execução no GitHub Actions](${d.run.url})`:'','',
@@ -117,7 +119,7 @@ function markdown(d,states){
   `| Orçamento de tempo | **${d.timeBudget.blocked===0?'OK':'BLOQUEIOS'}** | ${fmt(d.timeBudget.blocked)} fase(s) bloqueada(s) de ${fmt(d.timeBudget.decisions)} |`,'',
   '## Suprimentos e módulos','',
   `- ${supplyText('Fuel',fuel)}.`,`- ${supplyText('CO₂',co2)}.`,
-  `- Manutenção/A-check/reparos: **${safe(d.maintenance.preventiveACheckRepairs)}**${d.maintenance.evidence?` — avaliadas ${fmt(d.maintenance.evidence.evaluated)}, selecionadas ${fmt(d.maintenance.evidence.selected)}, bulk check ${d.maintenance.evidence.bulkCheckExecuted===true?'executado':d.maintenance.evidence.bulkCheckExecuted===false?'não necessário':'n/d'}, reparo elegível ${d.maintenance.evidence.repairEligible===true?'sim':d.maintenance.evidence.repairEligible===false?'não':'n/d'}`:''}.`,
+  `- Manutenção/A-check/reparos: **${safe(d.maintenance.preventiveACheckRepairs)}**${d.maintenance.holdReason?` — ${safe(d.maintenance.holdReason)}`:d.maintenance.evidence?` — avaliadas ${fmt(d.maintenance.evidence.evaluated)}, selecionadas ${fmt(d.maintenance.evidence.selected)}, bulk check ${d.maintenance.evidence.bulkCheckExecuted===true?'executado':d.maintenance.evidence.bulkCheckExecuted===false?'não necessário':'n/d'}, reparo elegível ${d.maintenance.evidence.repairEligible===true?'sim':d.maintenance.evidence.repairEligible===false?'não':'n/d'}`:''}.`,
   `- Campanhas: **${safe(d.campaign.status)}**.`,'',
   '## Segurança e atenção','',
   alerts.length?alerts.map(x=>`- ⚠️ ${safe(x)}`).join('\n'):'- ✅ Nenhum alerta agregado adicional neste run.','',
