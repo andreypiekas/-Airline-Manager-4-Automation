@@ -45,6 +45,46 @@ test('safe maintenance HOLD becomes an explicit Telegram alert without implying 
  }finally{await rm(dir,{recursive:true,force:true});}
 });
 
+test('campaign verification is shown in Telegram summary and blocks departures when unverified',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'am4-telegram-campaign-'));
+ const oldRun=process.env.GITHUB_RUN_NUMBER;
+ try{
+  process.env.GITHUB_RUN_NUMBER='99';
+  await writeFile(join(dir,'company-dashboard.json'),JSON.stringify({
+   run:{stale:false},
+   bases:{effective:['AAA'],status:'observed'},
+   fleet:{seen:2,inflight:1,ready:1},
+   demand:{sufficient:1,evaluated:1,insufficient:0,unavailable:0},
+   departures:{departed:0,evaluated:1,held:1,unknown:0},
+   pricing:{adjusted:0,unchanged:1,unknown:0},
+   routes:{rerouted:0,reviewDecisions:{keep:0,hold:0,wouldReroute:0}},
+   supplies:{},
+   campaign:{
+    status:'unverified',
+    departureAuthorized:false,
+    evidence:{
+     allRequiredVerified:false,
+     ecoFriendly:{required:true,verifiedActive:false},
+     airlineReputation:{required:true,verifiedActive:true}
+    }
+   },
+   quarantines:{departure:0,route:0,pricingRoute:0,supplyKinds:0},
+   uiHealth:{status:'healthy'}
+  }));
+  await writeFile(join(dir,'operational-modules.json'),JSON.stringify({
+   schemaVersion:1,
+   campaign:{status:'unverified',evidence:{allRequiredVerified:false,departureAuthorized:false}}
+  }));
+  const summary=runSummaryMessage(dir,'success');
+  expect(summary).toContain('Campanhas: Eco ❌ | Reputation ✅ | decolagens ⛔');
+  const alert=importantMessage(dir,'success',join(dir,'missing-journal.json'));
+  expect(alert).toContain('campanhas exigidas nao confirmadas; decolagens bloqueadas');
+ }finally{
+  if(oldRun===undefined)delete process.env.GITHUB_RUN_NUMBER;else process.env.GITHUB_RUN_NUMBER=oldRun;
+  await rm(dir,{recursive:true,force:true});
+ }
+});
+
 test('challenge evidence becomes an explicit Telegram alert',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'am4-telegram-challenge-'));
  try{
