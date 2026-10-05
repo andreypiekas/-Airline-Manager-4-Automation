@@ -131,12 +131,14 @@ export class IndividualDepartureExecutor {
       if(fresh.state!=='ready'||!sameContext(expected,fresh)){entry.reason='AIRCRAFT_CONTEXT_CHANGED';continue;}
       const key=demandPoolKey(fresh,this.demand.poolScope);
       if(inconsistentPools.has(key)){entry.reason='DEMAND_POOL_TOTALS_INCONSISTENT_AT_INITIAL_COLLECTION';continue;}
-      if(validDemandCabins(fresh.remaining)){
+      const rawDemandValid=validDemandCabins(fresh.remaining)&&validDemandCabins(fresh.dailyTotal)&&
+        (['Y','J','F'] as const).every(k=>fresh.remaining![k]<=fresh.dailyTotal![k]);
+      if(rawDemandValid){
         const ceiling=poolRemaining.get(key);
-        poolRemaining.set(key,ceiling?minCabins(ceiling,fresh.remaining):{...fresh.remaining});
+        poolRemaining.set(key,ceiling?minCabins(ceiling,fresh.remaining!):{...fresh.remaining!});
       }
       const ceiling=poolRemaining.get(key);
-      const boundedFresh=ceiling&&validDemandCabins(fresh.remaining)?{...fresh,remaining:minCabins(fresh.remaining,ceiling)}:fresh;
+      const boundedFresh=rawDemandValid&&ceiling?{...fresh,remaining:minCabins(fresh.remaining!,ceiling)}:fresh;
       // Analyze only the freshly re-read target. Global uniqueness/completeness came
       // from the initial full snapshot; the pool ceiling conservatively carries
       // shared-demand consumption across targets in this run.
