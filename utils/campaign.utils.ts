@@ -1,5 +1,6 @@
 import { Page } from "@playwright/test";
 import { GeneralUtils } from "./general.utils";
+import { assertNoInteractiveChallenge } from "./challenge-guard";
 
 export class CampaignUtils {
     page: Page;
@@ -27,6 +28,7 @@ export class CampaignUtils {
     }
 
     private async moveAndSelectOption(selectLocator: any, optionValue: string) {
+        await assertNoInteractiveChallenge(this.page, 'campaign:before-select');
         await selectLocator.waitFor({ state: 'visible', timeout: 10000 });
         await selectLocator.selectOption(optionValue);
     }
