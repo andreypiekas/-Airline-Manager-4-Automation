@@ -298,6 +298,8 @@ Desativar reduz trabalho de pesquisa, mas também remove evidência necessária 
 
 Define quantas aeronaves podem entrar na pesquisa de rota durante uma run.
 
+Aeronaves em `hold_insufficient` entram **antes** da rotação de revisão normal; dentro desse grupo, menor ocupação observada recebe maior prioridade.
+
 Um valor maior aumenta cobertura, mas também aumenta navegação e tempo de execução.
 
 **Recomendação:** comece com `3`.
@@ -306,9 +308,9 @@ Um valor maior aumenta cobertura, mas também aumenta navegação e tempo de exe
 
 **Padrão:** `5`
 
-Define quantas sugestões podem ser inspecionadas por aeronave.
+Define quantas sugestões válidas podem ser mantidas por aeronave. O leitor pode examinar sugestões adicionais para descartar destinos que nem atingem o teto mínimo de demanda.
 
-Mais sugestões aumentam cobertura, mas não transformam a lista em prova de ótimo global.
+Mais sugestões aumentam cobertura, mas não transformam a lista em prova de ótimo global. A decisão usa a melhor opção entre os candidatos completamente verificados.
 
 **Recomendação:** `5`.
 
