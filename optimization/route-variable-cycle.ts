@@ -54,7 +54,7 @@ export interface CurrentRouteGrossRevenueCeiling {
 
 export interface RouteVariableCycleComparison {
   status:'candidate_dominates'|'keep_current'|'unavailable';
-  comparisonBasis:'verified_cycle_intervals'|'current_gross_revenue_ceiling'|'unavailable';
+  comparisonBasis:'verified_cycle_intervals'|'verified_demand_hold_opportunity'|'current_gross_revenue_ceiling'|'unavailable';
   currentGrossRevenueCeiling:CurrentRouteGrossRevenueCeiling|null;
   current:RouteVariableCycleInterval|null;
   candidate:RouteVariableCycleInterval|null;
@@ -197,7 +197,8 @@ export function compareRouteVariableCycles(
   current:RouteVariableCycleInterval|null,
   candidate:RouteVariableCycleInterval|null,
   minImprovementPercent=0,
-  currentGrossRevenueCeilingEvidence:CurrentRouteGrossRevenueCeiling|null=null
+  currentGrossRevenueCeilingEvidence:CurrentRouteGrossRevenueCeiling|null=null,
+  currentDemandHoldVerified=false
 ):RouteVariableCycleComparison {
   const base:RouteVariableCycleComparison={
     status:'unavailable',comparisonBasis:'unavailable',currentGrossRevenueCeiling:currentGrossRevenueCeilingEvidence,
@@ -227,6 +228,26 @@ export function compareRouteVariableCycles(
       requiredCandidateLowPerHour:required,firstCycleCandidateLow:candidate!.firstCycleAfterSetup.low!,
       reason:dominates?'CANDIDATE_LOW_BOUND_DOMINATES_CURRENT_HIGH_BOUND_AND_FIRST_CYCLE_POSITIVE':
         'CONSERVATIVE_DOMINANCE_NOT_PROVEN',
+      comparisonReady:true
+    };
+  }
+
+  if(currentDemandHoldVerified&&candidate?.status==='verified_interval'&&candidate.comparisonReady&&
+    finite(candidate.recurringCycleProfitPerHour.low)&&finite(candidate.recurringCycleProfitPerHour.expected)&&
+    finite(candidate.recurringCycleProfitPerHour.high)&&finite(candidate.firstCycleAfterSetup.low)){
+    const low=candidate.recurringCycleProfitPerHour.low!;
+    const expected=candidate.recurringCycleProfitPerHour.expected!;
+    const high=candidate.recurringCycleProfitPerHour.high!;
+    const first=candidate.firstCycleAfterSetup.low!;
+    const dominates=low>0&&first>0;
+    return {
+      ...base,status:dominates?'candidate_dominates':'keep_current',
+      comparisonBasis:'verified_demand_hold_opportunity',
+      deltaPerHour:{conservativeLower:low,expected,optimisticUpper:high},
+      requiredCandidateLowPerHour:0,firstCycleCandidateLow:first,
+      reason:dominates
+        ?'CANDIDATE_POSITIVE_LOW_BOUND_BEATS_VERIFIED_DEMAND_HOLD_NO_DEPARTURE'
+        :'CANDIDATE_DOES_NOT_BEAT_VERIFIED_DEMAND_HOLD_OPPORTUNITY',
       comparisonReady:true
     };
   }
