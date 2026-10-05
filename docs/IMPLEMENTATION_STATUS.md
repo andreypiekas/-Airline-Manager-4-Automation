@@ -85,4 +85,4 @@ Evidência live de 05/10/2026:
 | 1275 | DTW | Detroit Metropolitan |
 | 465 | TXL | Berlin Tegel |
 
-A lista live é reutilizada por análise de demanda, resolução de origem, route review/reroute e departure. `AIRLINE_BASES_JSON` é apenas fallback. Uma futura base entra automaticamente quando o ID nativo puder ser resolvido de forma única no catálogo do sistema.
+A lista live é reutilizada por resolução de origem e route review/reroute. `AIRLINE_BASES_JSON` é apenas fallback. O executor de departure é deliberadamente base-agnostic para rotas já existentes e não depende dessa lista; uma futura base entra automaticamente nas funções de hub quando o ID nativo puder ser resolvido de forma única no catálogo do sistema.
