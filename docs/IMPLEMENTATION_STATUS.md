@@ -16,8 +16,8 @@ Resumo técnico da branch `main`.
 | Manutenção / A-check / reparos | Produção |
 | Campanhas | Produção, confirmação pós-compra e gate pré-departure |
 | Pricing PAX | Produção |
-| Route research | Produção em leitura |
-| Route review | Produção |
+| Route research | Produção em leitura, prioridade automática por demanda insuficiente |
+| Route review | Produção, incluindo trigger de demanda |
 | Reroute executor | Implementado e fail-closed |
 | Journal persistente | Produção |
 | Estados operacionais | Produção |
@@ -49,13 +49,13 @@ Origem operacional é necessária para funções como revisão de retorno e rero
 
 ### Route review
 
-A revisão pode ocorrer após retorno confirmado à própria base ou por revisão diária quando a aeronave está em solo nessa base.
+A revisão pode ocorrer após retorno confirmado à própria base, por revisão diária na base ou por `hold_insufficient`.
 
-Comparações incompletas resultam em HOLD.
+No trigger de demanda, a pesquisa pode partir do aeroporto atual e recebe prioridade sobre a fila diária. Comparações incompletas continuam resultando em HOLD.
 
 ### Pricing
 
-O Auto Price nativo é usado como referência. Save real exige confirmação posterior.
+O Auto Price nativo é usado como referência. Save real exige confirmação posterior. Uma aeronave reroteada na mesma run não pode decolar enquanto o pricing da nova rota não estiver confirmado.
 
 ### Supplies
 
