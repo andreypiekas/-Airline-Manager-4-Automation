@@ -246,6 +246,8 @@ Essas validações são offline e não precisam acessar a conta do jogo.
 
 ## Configuração no GitHub
 
+> **Guia de instalação completo:** [GitHub Actions + Secrets + Variables + cron-job.org](docs/GITHUB_AND_CRON_SETUP.md)
+
 Abra:
 
 **Repository → Settings → Secrets and variables → Actions**
@@ -345,7 +347,7 @@ Body:
 
 Para automação externa, use um **Fine-grained Personal Access Token** limitado ao repositório e com a permissão mínima necessária para executar GitHub Actions.
 
-Veja [AUTOMACAO.md](AUTOMACAO.md) para o guia operacional.
+Veja [docs/GITHUB_AND_CRON_SETUP.md](docs/GITHUB_AND_CRON_SETUP.md) para o passo a passo completo do GitHub e cron-job.org, ou [AUTOMACAO.md](AUTOMACAO.md) para a operação diária.
 
 ---
 
