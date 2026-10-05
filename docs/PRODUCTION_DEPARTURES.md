@@ -2,7 +2,7 @@
 
 ## Estado atual — 05/10/2026
 
-O executor individual está ativo no workflow principal e já foi validado em produção. Ele opera a **rota existente** nos dois sentidos quando as evidências permitem: saída da base ou retorno para a base operacional confirmada.
+O executor individual está ativo no workflow principal e já foi validado em produção. Ele opera a **rota existente de qualquer aeronave pronta, em qualquer aeroporto**, quando as evidências permitem. A decolagem não depende mais de a rota conter uma base/hub conhecido.
 
 Não existe `departAll` como fallback.
 
@@ -29,7 +29,7 @@ Reruns reais são rejeitados. Uma tentativa cujo resultado não possa ser confir
 ## Fluxo por aeronave
 
 1. Coletar a frota e os detalhes completos.
-2. Resolver a base operacional por override explícito ou regra de base única na rota.
+2. Considerar toda aeronave pronta em uma rota existente, sem filtrar pela base/hub.
 3. Recoletar o alvo antes da decisão.
 4. Validar identidade, routeId, trecho, layout e demanda restante.
 5. Aplicar threshold de demanda e reservas conservadoras.
@@ -41,6 +41,15 @@ Reruns reais são rejeitados. Uma tentativa cujo resultado não possa ser confir
 11. Somente marcar `departed` quando a transição é confirmada.
 
 Uma falha depois do clique não é “corrigida” com segundo clique.
+
+## Cobertura de aeroportos e bases
+
+A fase de decolagem é **base-agnostic**: se o AM4 já possui uma rota válida atribuída à aeronave e o controle nativo de Depart está disponível, o executor pode processá-la independentemente de o aeroporto ser XAP, GRU, DTW, TXL ou qualquer outro aeroporto presente nas rotas da frota.
+
+A descoberta de hubs da companhia continua sendo usada por **route review/reroute**, onde a noção de “retorno à própria base” é necessária. Ela não bloqueia mais o despacho normal de rotas existentes.
+
+Isso evita que aeronaves permaneçam em solo apenas porque a origem operacional não pôde ser inferida ou porque o trecho atual não contém uma base conhecida.
+
 
 ## Configuração
 
