@@ -1,14 +1,50 @@
-# Auditoria de ocupação observada
+# Auditoria de ocupação
 
-> **Estado atual (05/10/2026):** a auditoria é usada como evidência observacional e não como autorização de departure/reroute. A automação operacional já está em produção; este documento descreve somente o papel do indicador de ocupação.
+A auditoria de ocupação é **observacional**. Ela descreve voos já em andamento e não autoriza departure ou reroute.
 
+## Fonte
 
-O coletor preserva o texto `Onboard: Y / J / F` dos cartões de rotas em voo, confirmado novamente na interface em 30/09/2026. O relatório `test-results/demand/occupancy-audit.json` compara esses passageiros com a configuração de assentos lida nos detalhes. Integra os artefatos existentes do workflow.
+O coletor lê `Onboard: Y / J / F` dos cartões em voo e compara os passageiros observados com o layout da aeronave.
 
-Estados: `empty` para zero passageiros confirmado, `low` abaixo de `MIN_DEMAND_PERCENTAGE`, `sufficient` no limite ou acima e `unavailable` quando faltam dados confiáveis. Somam-se passageiros e assentos físicos das classes configuradas; não se pondera J/F por preço ou espaço de configuração.
+Relatório:
 
-Uma coleta incompleta, identidade duplicada, leitura expirada, falha dos detalhes, número negativo, passageiros acima dos assentos ou capacidade total zero impedem o cálculo. Um campo desconhecido jamais é convertido em zero. A ausência de passageiros não é inferida da demanda restante.
+```text
+test-results/demand/occupancy-audit.json
+```
 
-Esse indicador descreve um voo em andamento. Não estima ocupação após novos preços, não comprova a causa de um voo vazio e não autoriza decolagem ou mudança de rota. A proposta de decolagem continua usando exclusivamente demanda restante e as regras do DemandManager. Aeronaves em solo não entram nesta auditoria de voos em andamento.
+## Estados
 
-A sessão autenticada foi restabelecida por formulário protegido, sem leitura ou armazenamento de credenciais pelo assistente. Esta inspeção não realizou operações no jogo. A persistência real entre runners já está ativa. Candidatas econômicas ainda permanecem sujeitas aos gates atuais de route review; esta auditoria não substitui essas evidências.
+| Estado | Significado |
+| --- | --- |
+| `empty` | zero passageiros confirmado |
+| `low` | ocupação abaixo do threshold |
+| `sufficient` | no limite ou acima |
+| `unavailable` | evidência insuficiente |
+
+O cálculo usa passageiros físicos e assentos físicos. Classes J/F não recebem peso econômico nesta auditoria.
+
+## Fail-safe
+
+O cálculo fica indisponível quando há:
+
+- coleta incompleta;
+- identidade duplicada;
+- leitura expirada;
+- capacidade inválida;
+- passageiros negativos;
+- passageiros acima da capacidade;
+- capacidade total igual a zero.
+
+Campo desconhecido nunca é convertido em zero.
+
+## Limites
+
+A auditoria:
+
+- não prevê ocupação futura;
+- não explica por que um voo teve baixa ocupação;
+- não substitui demanda restante;
+- não comprova rentabilidade;
+- não autoriza mudança de rota.
+
+A decisão de departure continua pertencendo ao Demand Manager. Route review usa suas próprias evidências econômicas.
