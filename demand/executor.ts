@@ -160,7 +160,8 @@ export class IndividualDepartureExecutor {
           trackingComplete:fuelTrackingComplete
         };
         if(!fuelTrackingComplete){entry.reason='FUEL_BUDGET_UNVERIFIED_AFTER_PRIOR_DEPARTURE';continue;}
-        if(fuelEvidence&&available<fuelEvidence.fuelLbs){entry.reason='FUEL_STOCK_INSUFFICIENT_BY_VERIFIED_HISTORY';continue;}
+        if(!fuelEvidence){entry.reason='FUEL_REQUIREMENT_UNVERIFIED';continue;}
+        if(available<fuelEvidence.fuelLbs){entry.reason='FUEL_STOCK_INSUFFICIENT_BY_VERIFIED_HISTORY';continue;}
       }
       const reserveDemand=()=>{
         if(!validDemandCabins(decision.possiblePassengers))return;
@@ -208,8 +209,8 @@ export class IndividualDepartureExecutor {
         entry.status='departed';entry.actualOnboard=after.onboard;entry.reason='NATIVE_INFLIGHT_IDENTITY_COUNTDOWN_AND_ONBOARD_CONFIRMED';
         reserveDemand();
         if(this.settings.fuelHoldingLbsAtRunStart!==undefined){
-          if(fuelEvidence)fuelCommitted+=fuelEvidence.fuelLbs;
-          else fuelTrackingComplete=false;
+          // A real departure cannot reach this point without verified fuel evidence.
+          fuelCommitted+=fuelEvidence!.fuelLbs;
         }
       } catch(error) {
         entry.status='outcome_unknown';entry.reason='NO_RETRY_AFTER_CLICK_ATTEMPT:'+code(error);report.halted=true;
