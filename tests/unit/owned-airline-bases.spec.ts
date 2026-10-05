@@ -29,6 +29,13 @@ test('unknown or ambiguous live hub ids fail closed to configured bases',async()
   });
 });
 
+
+test('missing configured fallback fails closed to no operational hubs',async()=>{
+  const catalog=await loadReference<AirportCatalog>('airports.json');
+  const r=resolveOwnedHubOptions([],catalog,[]);
+  expect(r).toMatchObject({status:'fallback',source:'configured-fallback',effectiveBases:[],fallbackBases:[]});
+});
+
 test('discovers owned hubs from the authenticated research page without mutation',async({page})=>{
   const dir=await mkdtemp(join(tmpdir(),'am4-owned-bases-'));
   try{
