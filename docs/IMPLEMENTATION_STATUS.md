@@ -1,36 +1,18 @@
-# Estado técnico da implementação — 05/10/2026
+# Estado da implementação
 
-## Baseline operacional
-
-Repositório ativo:
-
-```text
-andreypiekas/Airline-Manager-4-Automation
-```
-
-O repositório antigo é apenas histórico.
-
-## Evidências recentes
-
-- produção #6: `SUCCESS`; decolagens reais e compra de Fuel confirmadas;
-- validação #12: verde no mesmo baseline da #6;
-- produção #7: `SUCCESS`;
-- produção #7: etapa `Notificar resumo pelo Telegram` = `success`;
-- teste direto de Telegram = `TELEGRAM_TEST_SEND_OK`;
-- dashboard/Telegram executivos: cobertos por self-test e suíte offline após a atualização atual;
-- descoberta live de bases validada contra a conta real: `XAP`, `GRU`, `DTW` e `TXL` obtidos de `research_main.php#hubSelect` e cruzados pelos IDs nativos do catálogo.
+Resumo técnico da branch `main`.
 
 ## Componentes
 
 | Componente | Estado |
 | --- | --- |
-| Login / Fleet | Produção |
-| Descoberta automática de bases | Produção; lista live dos hubs com fallback conservador |
+| Login e coleta Fleet | Produção |
+| Descoberta dinâmica de hubs | Produção |
 | Demand Manager | Produção |
 | Threshold adaptativo | Produção, conservador |
-| Decolagem individual | Produção |
+| Departure individual | Produção, base-agnostic |
 | Fuel | Produção |
-| CO₂ | Produção, com quarentena persistente quando necessário |
+| CO₂ | Produção com fail-safe/quarentena |
 | Manutenção / A-check / reparos | Produção |
 | Campanhas | Produção |
 | Pricing PAX | Produção |
@@ -41,48 +23,74 @@ O repositório antigo é apenas histórico.
 | Estados operacionais | Produção |
 | UI Health | Produção |
 | Dashboard executivo | Produção |
-| Telegram | Entrega real validada |
+| Telegram | Implementado |
 | Compra automática de aeronaves | Fora do escopo |
 
-## Safeguards obrigatórios
+## Arquitetura atual
 
-Não enfraquecer:
+### Departures
+
+Rotas existentes podem ser processadas em qualquer aeroporto. A lista de hubs não é filtro de departure.
+
+### Hubs e origem operacional
+
+A lista de hubs é descoberta dinamicamente pela interface e cruzada com o catálogo de aeroportos. O fallback configurado existe para continuidade quando a leitura live não puder ser comprovada.
+
+Origem operacional é necessária para funções como revisão de retorno e reroute.
+
+### Route review
+
+A revisão pode ocorrer após retorno confirmado à própria base ou por revisão diária quando a aeronave está em solo nessa base.
+
+Comparações incompletas resultam em HOLD.
+
+### Pricing
+
+O Auto Price nativo é usado como referência. Save real exige confirmação posterior.
+
+### Supplies
+
+Fuel e CO₂ dependem do preço live. Referências externas não autorizam compra.
+
+## Safeguards que não devem ser enfraquecidos
 
 - `comparisonReady`;
 - `mutationAuthorized`;
-- ACKs de execução real;
-- validação de `GITHUB_ACTIONS`;
-- repositório autorizado;
+- ACKs internos de execução;
+- validação de contexto do GitHub Actions;
 - `GITHUB_RUN_ATTEMPT=1`;
+- verificação de SHA antes do acesso ao jogo;
 - journal persistente;
 - no-retry após mutação incerta;
-- verificação do SHA atual;
+- confirmação pós-clique/pós-Save;
+- preço live para supplies;
 - orçamento de tempo;
-- confirmação pós-Save / pós-clique;
-- preço live para supplies.
+- limites de mutações por run.
 
 ## Quarentenas
 
-Resultados históricos incertos de departure e supply continuam preservados no journal. Eles não devem ser repetidos automaticamente.
+Resultados incertos de departure, pricing, reroute ou supplies devem permanecer bloqueados até existir evidência segura para resolução.
 
-## Relatórios
+Apagar estado para forçar nova tentativa contraria o desenho fail-closed.
 
-O `GITHUB_STEP_SUMMARY` é agora um painel executivo único. Os relatórios técnicos completos continuam no artifact `demand-report`.
+## Observabilidade
 
-O Telegram deriva seus números do mesmo dashboard consolidado usado pelo Summary e omite identificadores sensíveis/operacionais desnecessários.
+A execução produz:
 
+- Summary executivo;
+- artifacts JSON/Markdown;
+- estados operacionais;
+- diagnósticos de UI;
+- histórico persistente;
+- notificação opcional via Telegram.
 
-## Bases operacionais
+## Limitações conhecidas
 
-A fonte primária deixou de ser uma lista fixa. O bot lê os hubs pertencentes à companhia em `research_main.php#hubSelect` e cruza os IDs do jogo com o catálogo local de aeroportos.
+- candidatos limitados não provam ótimo global;
+- custos econômicos incompletos impedem reroute;
+- dados estáticos não substituem observações live;
+- alterações na UI do AM4 podem acionar fail-safe;
+- o projeto não garante compatibilidade com regras futuras do jogo;
+- automação não elimina risco de medidas da plataforma contra contas automatizadas.
 
-Evidência live de 05/10/2026:
-
-| ID AM4 | IATA | Hub |
-| ---: | --- | --- |
-| 2926 | XAP | Chapecó |
-| 2947 | GRU | São Paulo Guarulhos |
-| 1275 | DTW | Detroit Metropolitan |
-| 465 | TXL | Berlin Tegel |
-
-A lista live é reutilizada por resolução de origem e route review/reroute. `AIRLINE_BASES_JSON` é apenas fallback. O executor de departure é deliberadamente base-agnostic para rotas já existentes e não depende dessa lista; uma futura base entra automaticamente nas funções de hub quando o ID nativo puder ser resolvido de forma única no catálogo do sistema.
+Consulte [CONFIGURATION.md](CONFIGURATION.md) para configuração, [GITHUB_AND_CRON_SETUP.md](GITHUB_AND_CRON_SETUP.md) para instalação e [archive/](archive/) para histórico de desenvolvimento.
