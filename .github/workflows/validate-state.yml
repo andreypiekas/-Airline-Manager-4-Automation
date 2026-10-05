@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   seed:
-    if: github.repository == 'andreypiekas/Airline-Manager-4-Automation' || github.repository == 'andreypiekas/-Airline-Manager-4-Automation'
+    if: github.repository == 'andreypiekas/Airline-Manager-4-Automation'
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:

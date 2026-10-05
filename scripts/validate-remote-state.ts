@@ -6,7 +6,7 @@ import { GitHubReturnState } from '../optimization/github-state';
 export async function validateRemoteState(stage: 'seed'|'restore', env = process.env) {
   const scope=env.RETURN_JOURNAL_SCOPE || '';
   const repository=env.GITHUB_REPOSITORY || '';
-  const allowedRepositories=new Set(['andreypiekas/Airline-Manager-4-Automation','andreypiekas/-Airline-Manager-4-Automation']);
+  const allowedRepositories=new Set(['andreypiekas/Airline-Manager-4-Automation']);
   if (!allowedRepositories.has(repository) || !/^ci-\d+-\d+$/.test(scope) || !env.GITHUB_TOKEN) throw new Error('SMOKE_CONFIG_INVALID');
   const options={repository,scope,token:env.GITHUB_TOKEN,directory:`.am4-state/smoke-${stage}`};
   const client=new GitHubReturnState(options);

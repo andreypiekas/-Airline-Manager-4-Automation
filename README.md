@@ -138,7 +138,7 @@ Secrets não são versionados e precisam existir neste repositório.
 
 ## Agendamento externo
 
-Endpoint esperado após o repositório ser renomeado para `Airline-Manager-4-Automation`:
+Endpoint do workflow operacional:
 
 ```text
 https://api.github.com/repos/andreypiekas/Airline-Manager-4-Automation/actions/workflows/playwright.yml/dispatches
