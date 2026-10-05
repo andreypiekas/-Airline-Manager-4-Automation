@@ -4,6 +4,7 @@ import { DemandReader } from '../demand/reader';
 import { findFleetRoute, openFleetList } from '../demand/navigation';
 import { inspectPricingSaveControl } from './control-evidence';
 import type { PricingPort } from './executor';
+import { assertNoInteractiveChallenge } from '../utils/challenge-guard';
 
 const ids:Record<Cabin,string>={Y:'#eTicket',J:'#bTicket',F:'#fTicket'};
 
@@ -13,12 +14,14 @@ export class PlaywrightPricingPort implements PricingPort {
 
   async collect(){
     this.prepared=null;
+    await assertNoInteractiveChallenge(this.page,'pricing:collect');
     await openFleetList(this.page,this.timeout);
     return new DemandReader(this.page,this.timeout,true).collect();
   }
 
   async prepare(expected:AircraftSnapshot){
     this.prepared=null;
+    await assertNoInteractiveChallenge(this.page,'pricing:prepare');
     await openFleetList(this.page,this.timeout);
     await findFleetRoute(this.page,expected,this.timeout);
     const fresh=await new DemandReader(this.page,this.timeout,true).readReadyAircraftDetails(expected);
@@ -55,6 +58,7 @@ export class PlaywrightPricingPort implements PricingPort {
       if((await input.inputValue()).trim()!==String(desired[k]))throw new Error('PRICING_INPUT_NOT_CONFIRMED');
     }
 
+    await assertNoInteractiveChallenge(this.page,'pricing:before-save');
     const response=this.page.waitForResponse(r=>{
       try{
         const u=new URL(r.url());
