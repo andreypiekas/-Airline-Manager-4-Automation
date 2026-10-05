@@ -180,6 +180,12 @@ Confira:
 - artifacts;
 - ausência de erro de configuração.
 
+### Se o modo semiautomático estiver habilitado
+
+A execução automática/cron apenas analisa e envia o resumo. Para realizar operações reais, abra **Run workflow** manualmente e marque a confirmação do modo semiautomático para aquela run.
+
+A configuração desse modo está detalhada em [VARIABLES.md](VARIABLES.md).
+
 ## 6. Primeira execução de produção
 
 Somente depois da simulation:
