@@ -568,15 +568,19 @@ Com `20`, aeronaves com até 20 horas restantes podem ser selecionadas.
 
 Ativa a rotina de campanhas.
 
+Em `production`, quando essa opção está ativa, o bot exige confirmação fresca das campanhas necessárias **antes de autorizar qualquer departure**. Se uma campanha precisar ser contratada, a interface é relida depois da compra; sem confirmação visual de que ela ficou ativa, as decolagens entram em HOLD com `CAMPAIGN_NOT_VERIFIED`.
+
 Em `simulation`, é forçada para `false`.
 
 ## `INCREASE_AIRLINE_REPUTATION`
 
 **Padrão no workflow:** `true`
 
-Controla se, além da campanha eco-friendly, o bot tenta manter uma campanha de reputação da companhia.
+Controla se, além da campanha eco-friendly, a campanha **Airline reputation** também é obrigatória para o gate pré-decolagem.
 
-**Recomendação:** `true` se você deseja essa automação.
+Com `true`, Eco Friendly **e** Airline Reputation precisam estar confirmadas como ativas. Com `false`, apenas Eco Friendly é exigida.
+
+**Recomendação:** `true` se você deseja manter as duas campanhas antes das partidas.
 
 ## `CAMPAIGN_TYPE`
 
