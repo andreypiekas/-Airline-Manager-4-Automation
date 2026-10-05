@@ -2,7 +2,6 @@ import { AircraftSnapshot, Cabins, CollectionResult, DemandConfig, DemandDecisio
 import { DemandManager } from './manager';
 import type { AdaptiveThreshold } from './adaptive-threshold';
 import { MUTATION_COMPLETION_RESERVE_MS } from '../utils/run-time-budget';
-import { resolveAircraftOrigin } from '../optimization/aircraft-origins';
 
 export interface DeparturePort {
   collect(): Promise<CollectionResult>;
@@ -14,8 +13,6 @@ export interface DeparturePort {
 export interface ExecutionSettings {
   dryRun: boolean;
   maxDepartures: number;
-  aircraftOrigins: ReadonlyMap<string,string>;
-  airlineBases: readonly string[];
   /** Absolute deadline after which no new departure mutation may start. */
   mutationDeadlineEpochMs?: number;
   blockedDepartureKeys?: ReadonlySet<string>;
@@ -36,7 +33,7 @@ export interface ExecutionEntry {
   };
 }
 export interface ExecutionReport {
-  schemaVersion: 1; dryRun: boolean; scope: 'existing-route-return-legs';
+  schemaVersion: 1; dryRun: boolean; scope: 'existing-route-ready-aircraft';
   generatedAt: string; completedAt: string | null; halted: boolean;
   summary: { evaluated: number; departed: number; simulated: number; held: number; unknown: number };
   entries: ExecutionEntry[];
@@ -70,13 +67,13 @@ export class IndividualDepartureExecutor {
   constructor(private readonly port: DeparturePort,private readonly demand: DemandConfig,
     private readonly settings: ExecutionSettings,private readonly save: (report: ExecutionReport)=>Promise<void>,
     private readonly adaptive:ReadonlyMap<string,AdaptiveThreshold>=new Map()) {
-    if (!demand.enabled || !demand.failSafe || !Number.isSafeInteger(settings.maxDepartures) || settings.maxDepartures<1 || settings.maxDepartures>100 ||
-      !settings.airlineBases.length || settings.airlineBases.some(b=>!/^[A-Z]{3}$/.test(b))) throw new Error('EXECUTION_SETTINGS_INVALID');
+    if (!demand.enabled || !demand.failSafe || !Number.isSafeInteger(settings.maxDepartures) || settings.maxDepartures<1 || settings.maxDepartures>100)
+      throw new Error('EXECUTION_SETTINGS_INVALID');
   }
   async run(): Promise<ExecutionReport> {
     if(this.used)throw new Error('EXECUTION_ALREADY_USED');
     this.used=true;
-    const report: ExecutionReport={schemaVersion:1,dryRun:this.settings.dryRun,scope:'existing-route-return-legs',
+    const report: ExecutionReport={schemaVersion:1,dryRun:this.settings.dryRun,scope:'existing-route-ready-aircraft',
       generatedAt:new Date().toISOString(),completedAt:null,halted:false,summary:{evaluated:0,departed:0,simulated:0,held:0,unknown:0},entries:[]};
     const persist=async()=>{
       report.summary={evaluated:report.entries.length,departed:report.entries.filter(e=>e.status==='departed').length,
@@ -122,12 +119,10 @@ export class IndividualDepartureExecutor {
         Date.now()>this.settings.mutationDeadlineEpochMs-MUTATION_COMPLETION_RESERVE_MS){
         entry.reason='RUN_TIME_BUDGET_EXHAUSTED_BEFORE_EVALUATION';continue;
       }
-      const origin=resolveAircraftOrigin(expected,initial,this.settings.aircraftOrigins,this.settings.airlineBases);
-      if(!origin.origin){entry.reason='ORIGIN_UNAVAILABLE';continue;}
-      // A rota existente pode sair da propria base ou retornar para ela.
-      const departingOwnBase=expected.from===origin.origin;
-      const returningOwnBase=expected.to===origin.origin;
-      if(!departingOwnBase&&!returningOwnBase){entry.reason='ROUTE_DOES_NOT_INCLUDE_OWN_BASE';continue;}
+      // Departure on an already assigned AM4 route is intentionally base-agnostic.
+      // Hub/base resolution is required for route review/reroute, not for dispatch.
+      // Any ready aircraft may proceed from any airport when the existing route,
+      // native Depart control, fresh demand and all safety/resource gates are verified.
       let fresh: AircraftSnapshot;
       try {fresh=await this.port.prepare(expected);}catch{entry.reason='DEPARTURE_CONTROL_OR_FRESH_DETAILS_UNVERIFIED';continue;}
       if(fresh.state!=='ready'||!sameContext(expected,fresh)){entry.reason='AIRCRAFT_CONTEXT_CHANGED';continue;}
