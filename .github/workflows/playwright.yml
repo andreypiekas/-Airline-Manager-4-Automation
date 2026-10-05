@@ -259,7 +259,7 @@ jobs:
       if: always()
       continue-on-error: true
       env:
-        DEMAND_TELEGRAM_ENABLED: ${{ vars.DEMAND_TELEGRAM_ENABLED || 'false' }}
+        DEMAND_TELEGRAM_ENABLED: 'true'
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         BOT_RESULT: ${{ steps.bot.outcome }}

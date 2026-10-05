@@ -26,13 +26,25 @@ function importantMessage(dir='test-results/demand',botResult=process.env.BOT_RE
  if(journal&&Number.isFinite(holdMinutes)&&holdMinutes>0){const departures=journal.events||[],holds=journal.holdObservations||[],groups=new Map();for(const x of holds){const k=x.aircraftId+':'+x.routeId,a=groups.get(k)||[];a.push(x);groups.set(k,a);}let prolonged=0;for(const [k,a] of groups){const [aircraftId,routeId]=k.split(':');const lastDep=Math.max(0,...departures.filter(x=>x.aircraftId===aircraftId&&x.routeId===routeId).map(x=>Date.parse(x.observedAt)||0));const active=a.filter(x=>(Date.parse(x.observedAt)||0)>lastDep).sort((x,y)=>Date.parse(x.observedAt)-Date.parse(y.observedAt));if(active.length>=2&&(Date.parse(active.at(-1).observedAt)-Date.parse(active[0].observedAt))/60000>=holdMinutes)prolonged++;}if(prolonged>0)events.push('holds prolongados com duracao verificada: '+prolonged);}
  if(!events.length)return null;return 'AM4 alerta: '+[...new Set(events)].join('; ')+'.';
 }
+function runSummaryMessage(dir='test-results/demand',botResult=process.env.BOT_RESULT){
+ const dashboard=read(dir,'company-dashboard.json'),execution=read(dir,'execution-report.json'),pricing=read(dir,'pricing-execution.json'),route=read(dir,'route-execution.json'),supply=read(dir,'supply-report.json');
+ const status=botResult==='success'?'SUCESSO':botResult==='failure'?'FALHA':String(botResult||'DESCONHECIDO').toUpperCase();
+ const parts=[`AM4 run: ${status}`];
+ const fleet=dashboard?.fleet;if(Number.isSafeInteger(fleet?.seen))parts.push(`frota ${fleet.seen} (prontas ${fleet.ready||0}, em voo ${fleet.inflight||0})`);
+ const dep=execution?.summary;if(dep&&['evaluated','departed','held','unknown'].every(k=>Number.isSafeInteger(dep[k])))parts.push(`decolagens ${dep.departed}/${dep.evaluated}; retidas ${dep.held}; incertas ${dep.unknown}`);
+ const p=pricing?.summary;if(p&&['evaluated','adjusted','unchanged','unknown'].every(k=>Number.isSafeInteger(p[k])))parts.push(`pricing ${p.adjusted} ajustado(s), ${p.unchanged} no alvo, ${p.unknown} incerto(s)`);
+ const r=route?.summary;if(r&&['evaluated','rerouted','held','unknown'].every(k=>Number.isSafeInteger(r[k])))parts.push(`rotas ${r.rerouted} alterada(s), ${r.held} retida(s), ${r.unknown} incerta(s)`);
+ const supplyLabel=(kind)=>{const e=(supply?.entries||[]).find(x=>x?.kind===kind);return e?`${kind==='fuel'?'Fuel':'CO2'} ${e.status} (${e.reason})`:null;};
+ const fuel=supplyLabel('fuel'),co2=supplyLabel('co2');if(fuel)parts.push(fuel);if(co2)parts.push(co2);
+ return parts.join('; ')+'.';
+}
 async function main() {
   if (process.env.DEMAND_TELEGRAM_ENABLED !== 'true') return;
   const token = process.env.TELEGRAM_BOT_TOKEN, chatId = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chatId) { console.log('[Demand] Telegram nao configurado.'); return; }
-  if (!fs.existsSync('test-results/demand/demand-report.json')) return;
-  const text = importantMessage('test-results/demand',process.env.BOT_RESULT);
-  if (!text) return;
+  const summary = runSummaryMessage('test-results/demand',process.env.BOT_RESULT);
+  const alert = importantMessage('test-results/demand',process.env.BOT_RESULT);
+  const text = alert ? summary+'\n'+alert : summary;
   const body = JSON.stringify({ chat_id: chatId, text });
   await new Promise((resolve, reject) => {
     const req = https.request({ hostname: 'api.telegram.org', path: `/bot${token}/sendMessage`, method: 'POST',
@@ -43,4 +55,4 @@ async function main() {
   });
 }
 if (require.main === module) main().catch(() => { console.error('[Demand] Nao foi possivel enviar o resumo Telegram.'); process.exitCode = 1; });
-module.exports = { message, importantMessage };
+module.exports = { message, importantMessage, runSummaryMessage };
