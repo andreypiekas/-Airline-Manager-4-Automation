@@ -48,11 +48,11 @@ export class CampaignUtils {
     }
 
     private activeEcoLocator() {
-        return this.page.getByRole('cell', { name: /Eco friendly/i }).first();
+        return this.page.getByRole('cell', { name: ' Eco friendly', exact: true }).first();
     }
 
     private activeReputationLocator() {
-        return this.page.getByRole('cell', { name: /Airline reputation/i }).first();
+        return this.page.getByRole('cell', { name: ' Airline reputation', exact: true }).first();
     }
 
     private async isVisible(locator: Locator, timeout = 500): Promise<boolean> {
