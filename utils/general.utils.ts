@@ -24,11 +24,49 @@ export class GeneralUtils {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    /** Standard Playwright click with a challenge check immediately before interaction. */
+    /**
+     * Standard Playwright click with a challenge check and pointer-hit validation.
+     * Never uses force: true. If another element still covers the control after
+     * recentering, the operation fails closed instead of clicking through it.
+     */
     public static async moveAndClick(page: Page, locator: any, customTimeout = 10000) {
         await assertNoInteractiveChallenge(page, 'before-click');
         await locator.waitFor({ state: 'visible', timeout: customTimeout });
-        await locator.click({ timeout: customTimeout });
+
+        const findClickablePoint = async () => locator.evaluate((element: Element) => {
+            const el = element as HTMLElement;
+            const rect = el.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) return null;
+            const points = [
+                [0.50, 0.50],
+                [0.50, 0.75],
+                [0.50, 0.25],
+                [0.25, 0.50],
+                [0.75, 0.50]
+            ];
+            for (const [rx, ry] of points) {
+                const clientX = rect.left + rect.width * rx;
+                const clientY = rect.top + rect.height * ry;
+                const top = document.elementFromPoint(clientX, clientY);
+                if (top && (top === el || el.contains(top))) {
+                    return { x: rect.width * rx, y: rect.height * ry };
+                }
+            }
+            return null;
+        });
+
+        let point = await findClickablePoint();
+        if (!point) {
+            await locator.evaluate((element: Element) =>
+                element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' as ScrollBehavior })
+            );
+            await page.waitForTimeout(250);
+            await assertNoInteractiveChallenge(page, 'before-click-after-scroll');
+            point = await findClickablePoint();
+        }
+
+        if (!point) throw new Error('UI_CONTROL_OBSCURED');
+        await locator.click({ position: point, timeout: customTimeout });
     }
 
     public static async clickControl(page: Page, selectorOrLocator: any) {
