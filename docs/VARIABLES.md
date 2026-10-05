@@ -454,15 +454,15 @@ Em `simulation`, o workflow força `false`.
 
 **Formato:** inteiro positivo.
 
-É o teto exclusivo de preço por 1.000 lbs.
+É o teto máximo inclusivo de preço por 1.000 lbs.
 
 A regra é:
 
 ```text
-comprar somente se preço < MAX_FUEL_PRICE
+comprar somente se preço <= MAX_FUEL_PRICE
 ```
 
-Portanto, com `550`, preço exatamente 550 **não compra**.
+Portanto, com `550`, preços até 550 **podem comprar**; 551 ou mais bloqueia pela regra de preço.
 
 **Recomendação:** trate esse valor como política pessoal da sua instalação e revise antes de produção.
 
@@ -472,13 +472,15 @@ Portanto, com `550`, preço exatamente 550 **não compra**.
 
 **Formato:** inteiro positivo.
 
-Teto exclusivo por 1.000 quotas de CO₂.
+Teto máximo inclusivo por 1.000 quotas de CO₂.
 
 A regra também é estrita:
 
 ```text
-comprar somente se preço < MAX_CO2_PRICE
+comprar somente se preço <= MAX_CO2_PRICE
 ```
+
+Com `120`, preços de 120 ou menos passam pelo gate de preço; 121 ou mais são bloqueados.
 
 **Recomendação:** revise conforme sua estratégia.
 
