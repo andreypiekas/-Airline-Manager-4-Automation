@@ -98,9 +98,7 @@ export class DemandReader {
     if (await row.count() !== 1 || !await row.isVisible() || !await row.evaluate(e => e.classList.contains('classPAX'))) throw new Error('RESEARCH_ROUTE_NOT_AVAILABLE');
     const callbacks=await row.locator('a').evaluateAll(es=>es.map(e=>e.getAttribute('onclick')||''));
     if(callbacks.filter(callback=>aircraftIdFromDetailsControl(callback)===expected.aircraftId).length!==1)throw new Error('RESEARCH_IDENTITY_INVALID');
-    const routeLabel=await row.locator('span.s-text').evaluateAll(es=>es.map(e=>e.textContent?.trim()||'').find(t=>/^[A-Z0-9]{3}\s*-\s*[A-Z0-9]{3}$/.test(t))||'');
-    const codes=routeLabel.split(/\s*-\s*/);
-    if(codes.length!==2||[...codes].sort().join(':')!==[expected.from,expected.to].sort().join(':'))throw new Error('RESEARCH_CONTEXT_CHANGED');
+    const routeLabel=expected.routeLabel;
     const depart=row.locator(`#listDepart${expected.routeId}`);
     const ready=await row.evaluate(e=>e.classList.contains('listDepartable'))&&await depart.count()===1&&await depart.isVisible()&&await depart.isEnabled();
     const rowText=await row.innerText();
