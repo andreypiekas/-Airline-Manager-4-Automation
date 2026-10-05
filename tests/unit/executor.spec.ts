@@ -7,13 +7,13 @@ import { departureControlShape } from '../../demand/departure-control-evidence';
 
 const snapshot=(change:Partial<AircraftSnapshot>={}):AircraftSnapshot=>({aircraftId:'1',registration:'TEST',routeId:'10',routeLabel:'AAA - GRU',from:'AAA',to:'GRU',state:'ready',capacity:{Y:100,J:0,F:0},remaining:{Y:100,J:0,F:0},dailyTotal:{Y:1000,J:100,F:100},observedAt:new Date().toISOString(),...change});
 const collection=(a:AircraftSnapshot[],complete=true):CollectionResult=>({aircraft:a,complete,expectedRoutes:a.length,warnings:[]});
-function setup(options:{initial?:CollectionResult;fresh?:CollectionResult;prepared?:AircraftSnapshot;confirmed?:AircraftSnapshot|null;dryRun?:boolean;limit?:number;prepareFail?:boolean;clickFail?:boolean;collectFail?:boolean;saveFail?:boolean;mutationDeadlineEpochMs?:number;blockedDepartureKeys?:ReadonlySet<string>;fuelHoldingLbsAtRunStart?:number}={}) {
+function setup(options:{initial?:CollectionResult;fresh?:CollectionResult;prepared?:AircraftSnapshot;confirmed?:AircraftSnapshot|null;dryRun?:boolean;limit?:number;prepareFail?:boolean;clickFail?:boolean;collectFail?:boolean;saveFail?:boolean;mutationDeadlineEpochMs?:number;blockedDepartureKeys?:ReadonlySet<string>;fuelHoldingLbsAtRunStart?:number;campaignVerified?:boolean}={}) {
   let reads=0,clicks=0;const saved:ExecutionReport[]=[];
   const port:DeparturePort={collect:async()=>{reads++;if(options.collectFail)throw Error('loading');return options.initial??collection([snapshot()]);},
     prepare:async a=>{if(options.prepareFail)throw Error('unverified');return options.prepared??snapshot(a);},
     depart:async()=>{clicks++;if(options.clickFail)throw Error('timeout');},
     confirm:async a=>options.confirmed===null?null:options.confirmed??snapshot({...a,state:'inflight',onboard:{Y:88,J:0,F:0},timing:flightCountdownObservation(a.aircraftId,a.routeId,'01:00:00',new Date().toISOString())})};
-  const executor=new IndividualDepartureExecutor(port,readDemandConfig({}),{dryRun:options.dryRun??false,maxDepartures:options.limit??1,mutationDeadlineEpochMs:options.mutationDeadlineEpochMs,blockedDepartureKeys:options.blockedDepartureKeys,fuelHoldingLbsAtRunStart:options.fuelHoldingLbsAtRunStart},async r=>{if(options.saveFail&&r.entries.some(e=>e.status==='attempting'))throw Error('disk');saved.push(JSON.parse(JSON.stringify(r)));});
+  const executor=new IndividualDepartureExecutor(port,readDemandConfig({}),{dryRun:options.dryRun??false,maxDepartures:options.limit??1,mutationDeadlineEpochMs:options.mutationDeadlineEpochMs,blockedDepartureKeys:options.blockedDepartureKeys,fuelHoldingLbsAtRunStart:options.fuelHoldingLbsAtRunStart,campaignVerified:options.campaignVerified},async r=>{if(options.saveFail&&r.entries.some(e=>e.status==='attempting'))throw Error('disk');saved.push(JSON.parse(JSON.stringify(r)));});
   return {executor,saved,clicks:()=>clicks,reads:()=>reads};
 }
 test('persist intent before exactly one native click and confirm onboard separately from demand coverage',async()=>{
@@ -83,6 +83,16 @@ test('run time budget holds before mutation and never creates an uncertain resul
 
 
 test('persisted uncertain departure quarantine blocks before any click',async()=>{const s=setup({blockedDepartureKeys:new Set(['1:10'])});const r=await s.executor.run();expect(s.clicks()).toBe(0);expect(r.entries[0].reason).toBe('PERSISTED_UNCERTAIN_DEPARTURE_BLOCK');expect(r.summary).toMatchObject({held:1,unknown:0});});
+
+test('unverified required campaigns hold departures before fresh target reads or clicks',async()=>{
+ const s=setup({campaignVerified:false});
+ const r=await s.executor.run();
+ expect(s.clicks()).toBe(0);
+ expect(s.reads()).toBe(1);
+ expect(r.summary).toMatchObject({departed:0,held:1,unknown:0});
+ expect(r.entries[0]).toMatchObject({status:'held',reason:'CAMPAIGN_NOT_VERIFIED'});
+});
+
 
 
 test('two identical verified fuel observations are enough for a conservative route requirement',async()=>{
