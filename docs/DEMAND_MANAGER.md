@@ -61,6 +61,12 @@ Histórico verificado pode aumentar esse limite para uma combinação aeronave/r
 
 `would_depart` ainda não significa que haverá clique: o executor real aplica gates adicionais.
 
+### Demanda insuficiente e reanálise de rota
+
+`hold_insufficient` também funciona como gatilho de Route Research quando os módulos de rota estão habilitados. Aeronaves nesse estado recebem prioridade sobre a fila normal de revisão diária. A pesquisa usa o **aeroporto atual** como origem, inclusive quando a aeronave está fora de um hub, evitando que uma aeronave sem demanda fique presa esperando um retorno que não consegue realizar.
+
+Esse gatilho apenas inicia a pesquisa. A troca continua exigindo comparação econômica completa, candidato verificável e todos os gates do executor. Se nenhuma candidata comprovadamente superior existir, a aeronave permanece em HOLD.
+
 ## Execução real
 
 A produção exige, entre outros requisitos:
@@ -73,7 +79,8 @@ A produção exige, entre outros requisitos:
 - execução dentro de um repositório GitHub Actions válido, incluindo forks;
 - contexto fresco imediatamente antes da mutação;
 - ausência de quarentena impeditiva;
-- orçamento de tempo suficiente.
+- orçamento de tempo suficiente;
+- pricing fresco confirmado quando a aeronave tiver sido reroteada na mesma run.
 
 O ACK interno de departure mantém o nome legado `individual-return-legs-v1`, mas o executor atual é **base-agnostic para rotas existentes**.
 
