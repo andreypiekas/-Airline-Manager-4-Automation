@@ -78,6 +78,18 @@ test('run time budget holds before mutation and never creates an uncertain resul
 test('persisted uncertain departure quarantine blocks before any click',async()=>{const s=setup({blockedDepartureKeys:new Set(['1:10'])});const r=await s.executor.run();expect(s.clicks()).toBe(0);expect(r.entries[0].reason).toBe('PERSISTED_UNCERTAIN_DEPARTURE_BLOCK');expect(r.summary).toMatchObject({held:1,unknown:0});});
 
 
+test('two identical verified fuel observations are enough for a conservative route requirement',async()=>{
+ const history={status:'observed' as const,observedAt:new Date().toISOString(),source:'inspected-aircraft-flight-history' as const,complete:false as const,comparisonReady:false as const,mutationAuthorized:false as const,entries:[
+  {relativeTime:'6 hours ago',from:'TXL',to:'DTW',registrationLabel:'TEST',co2Quotas:100,onboard:{Y:80,J:0,F:0},fuelLbs:126220,revenue:1000},
+  {relativeTime:'12 hours ago',from:'DTW',to:'TXL',registrationLabel:'TEST',co2Quotas:100,onboard:{Y:80,J:0,F:0},fuelLbs:126220,revenue:1000}
+ ]};
+ const a=snapshot({from:'DTW',to:'TXL',routeLabel:'DTW - TXL',flightHistory:history});
+ const s=setup({initial:collection([a]),prepared:a,fuelHoldingLbsAtRunStart:500000});
+ const r=await s.executor.run();
+ expect(s.clicks()).toBe(1);
+ expect(r.entries[0]).toMatchObject({status:'departed',resourceEvidence:{verifiedRouteFuelLbs:126220,matchingHistorySamples:2,trackingComplete:true}});
+});
+
 test('verified historical fuel evidence blocks a departure before the click when run stock is insufficient',async()=>{
  const history=(fuelLbs:number)=>({status:'observed' as const,observedAt:new Date().toISOString(),source:'inspected-aircraft-flight-history' as const,complete:false as const,comparisonReady:false as const,mutationAuthorized:false as const,entries:[0,1,2].map(i=>({relativeTime:`${i+1} hours ago`,from:i%2?'GRU':'AAA',to:i%2?'AAA':'GRU',registrationLabel:'TEST',co2Quotas:100,onboard:{Y:80,J:0,F:0},fuelLbs,revenue:1000}))});
  const a=snapshot({flightHistory:history(59928)});
