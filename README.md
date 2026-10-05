@@ -68,7 +68,7 @@ Em cada execução autenticada, o bot pode consultar a interface nativa do AM4 e
 
 Os IDs observados são cruzados com o catálogo local de aeroportos. A lista live só é usada quando pode ser resolvida de forma consistente.
 
-`AIRLINE_BASES_JSON` existe apenas como **fallback conservador**.
+Existe um **fallback configurável** para os hubs caso a descoberta live não possa ser comprovada.
 
 Assim, uma nova base pode ser reconhecida automaticamente sem precisar alterar o código do executor de decolagem.
 
@@ -88,16 +88,9 @@ Entre os controles estão:
 - threshold adaptativo baseado em histórico verificado;
 - identidade única da rota e da aeronave.
 
-Configuração padrão:
-
-```text
-MIN_DEMAND_PERCENTAGE=80
-DEMAND_THRESHOLD_MODE=aggregate
-DEMAND_POOL_SCOPE=airport-pair
-DEMAND_MAX_AGE_SECONDS=300
-```
-
 O threshold adaptativo pode elevar o limite quando o histórico fornece evidência suficiente. Ele não reduz o piso configurado com dados fracos ou incompletos.
+
+A configuração avançada do Demand Manager está em [docs/VARIABLES.md](docs/VARIABLES.md).
 
 ---
 
@@ -149,15 +142,9 @@ O bot não trata uma lista parcial de sugestões como prova da melhor rota globa
 
 O módulo de suprimentos usa o **preço observado ao vivo na interface**.
 
-Exemplo de configuração:
-
-```text
-MAX_FUEL_PRICE=550
-MAX_CO2_PRICE=120
-MIN_CASH_RESERVE=0
-```
-
 O bot verifica preço, capacidade disponível, limites configurados e contexto antes da compra.
+
+Os tetos, limites por execução e reserva de caixa estão documentados em [docs/VARIABLES.md](docs/VARIABLES.md).
 
 Após uma tentativa, estoque e resultado financeiro são relidos. Resultado inconclusivo entra em quarentena e não é repetido automaticamente.
 
@@ -274,36 +261,15 @@ Depois de criar o fork, habilite **Actions** nele e abra:
 
 > `TELEGRAM_CHAT_ID` deve ser o ID da conversa, não o ID do próprio bot.
 
-### Variables recomendadas
+### Configuração avançada
 
-```text
-RETURN_JOURNAL_SCOPE=am4-prod
+As demais Repository Variables são opcionais e possuem valores padrão seguros no workflow.
 
-MAX_INDIVIDUAL_DEPARTURES=20
+Para personalizar demanda, hubs, limites de departures, Fuel/CO₂, manutenção, campanhas, pricing, route review e reroute, consulte:
 
-MIN_DEMAND_PERCENTAGE=80
-DEMAND_THRESHOLD_MODE=aggregate
-DEMAND_POOL_SCOPE=airport-pair
-DEMAND_MAX_AGE_SECONDS=300
+**[docs/VARIABLES.md — referência completa de Variables](docs/VARIABLES.md)**
 
-MAX_FUEL_PRICE=550
-MAX_CO2_PRICE=120
-MIN_CASH_RESERVE=0
-
-ENABLE_ROUTE_RESEARCH=true
-ROUTE_RESEARCH_MAX_AIRCRAFT=3
-ROUTE_RESEARCH_MAX_SUGGESTIONS=5
-
-ENABLE_ROUTE_OPTIMIZER=true
-ENABLE_ROUTE_EXECUTION=true
-ROUTE_MAX_REROUTES_PER_RUN=1
-
-ENABLE_TICKET_PRICING=true
-ENABLE_TICKET_PRICING_EXECUTION=true
-TICKET_PRICING_MAX_ADJUSTMENTS_PER_RUN=5
-```
-
-A referência completa está em [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+Não é necessário criar todas as Variables para começar.
 
 ---
 
@@ -448,7 +414,8 @@ O guard de SHA pode ter identificado que o código no `main` mudou enquanto aque
 | --- | --- |
 | [docs/README.md](docs/README.md) | Índice técnico |
 | [docs/GITHUB_AND_CRON_SETUP.md](docs/GITHUB_AND_CRON_SETUP.md) | Configuração completa do GitHub e cron-job.org |
-| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Secrets, Variables e limites |
+| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Secrets e inputs do workflow |
+| [docs/VARIABLES.md](docs/VARIABLES.md) | Todas as Variables avançadas, defaults e efeitos |
 | [docs/DEMAND_MANAGER.md](docs/DEMAND_MANAGER.md) | Regras de demanda |
 | [docs/PRODUCTION_DEPARTURES.md](docs/PRODUCTION_DEPARTURES.md) | Executor de decolagens |
 | [docs/ROUTES_AND_PRICING.md](docs/ROUTES_AND_PRICING.md) | Route review, reroute e pricing |
