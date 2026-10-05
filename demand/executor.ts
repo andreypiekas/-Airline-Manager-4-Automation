@@ -1,4 +1,4 @@
-import { AircraftSnapshot, CollectionResult, DemandConfig, DemandDecision } from './types';
+import { AircraftSnapshot, Cabins, CollectionResult, DemandConfig, DemandDecision } from './types';
 import { DemandManager } from './manager';
 import type { AdaptiveThreshold } from './adaptive-threshold';
 import { MUTATION_COMPLETION_RESERVE_MS } from '../utils/run-time-budget';
@@ -46,6 +46,10 @@ const sameContext = (a: AircraftSnapshot,b: AircraftSnapshot) => a.aircraftId ==
   (['Y','J','F'] as const).every(k=>a.capacity![k]===b.capacity![k]);
 
 const routePairKey=(a:string,b:string)=>[a,b].sort().join(':');
+const validDemandCabins=(c:Cabins|null|undefined):c is Cabins=>!!c&&(['Y','J','F'] as const).every(k=>Number.isSafeInteger(c[k])&&c[k]>=0);
+const minCabins=(a:Cabins,b:Cabins):Cabins=>({Y:Math.min(a.Y,b.Y),J:Math.min(a.J,b.J),F:Math.min(a.F,b.F)});
+const subtractCabins=(a:Cabins,b:Cabins):Cabins=>({Y:Math.max(0,a.Y-b.Y),J:Math.max(0,a.J-b.J),F:Math.max(0,a.F-b.F)});
+const demandPoolKey=(a:AircraftSnapshot,scope:DemandConfig['poolScope'])=>scope==='airport-pair'?routePairKey(a.from,a.to):a.from+':'+a.to;
 function verifiedHistoricalFuelRequirement(a:AircraftSnapshot):{fuelLbs:number;samples:number}|null{
   const history=a.flightHistory;
   if(!history||history.status!=='observed'||!Array.isArray(history.entries))return null;
@@ -85,7 +89,21 @@ export class IndividualDepartureExecutor {
     if(this.settings.fuelHoldingLbsAtRunStart!==undefined&&!fuelTrackingComplete)throw new Error('EXECUTION_FUEL_BUDGET_INVALID');
     let initial: CollectionResult;
     try { initial=await this.port.collect(); } catch { report.halted=true;await persist();throw new Error('EXECUTION_INITIAL_COLLECTION_FAILED'); }
-    // Original targets only: an aircraft landing during this run is considered on the NEXT execution.
+    const aircraftCounts=new Map<string,number>(),routeCounts=new Map<string,number>();
+    const poolRemaining=new Map<string,Cabins>(),poolTotals=new Map<string,Cabins>(),inconsistentPools=new Set<string>();
+    for(const a of initial.aircraft){
+      aircraftCounts.set(a.aircraftId,(aircraftCounts.get(a.aircraftId)||0)+1);
+      routeCounts.set(a.routeId,(routeCounts.get(a.routeId)||0)+1);
+      if(a.state!=='ready'||!validDemandCabins(a.remaining)||!validDemandCabins(a.dailyTotal))continue;
+      const key=demandPoolKey(a,this.demand.poolScope),current=poolRemaining.get(key),total=poolTotals.get(key);
+      if(total&&(['Y','J','F'] as const).some(k=>total[k]!==a.dailyTotal![k]))inconsistentPools.add(key);
+      poolTotals.set(key,{...a.dailyTotal});
+      poolRemaining.set(key,current?minCabins(current,a.remaining):{...a.remaining});
+    }
+
+    // One complete fleet snapshot establishes global identity/pool integrity. Each
+    // target is then re-read individually immediately before a possible mutation.
+    // This avoids O(N) full-fleet rescans while preserving fresh target evidence.
     for(const expected of initial.aircraft.filter(a=>a.state!=='inflight')) {
       const entry: ExecutionEntry={aircraftId:expected.aircraftId,registration:expected.registration,routeId:expected.routeId,
         from:expected.from,to:expected.to,status:'held',reason:'DATA_UNAVAILABLE',demand:null,actualOnboard:null};
@@ -95,27 +113,36 @@ export class IndividualDepartureExecutor {
       if(this.settings.blockedDepartureKeys?.has(expected.aircraftId+':'+expected.routeId)){entry.reason='PERSISTED_UNCERTAIN_DEPARTURE_BLOCK';continue;}
       if(this.attemptedAircraft.size>=this.settings.maxDepartures){entry.reason='EXECUTION_LIMIT';continue;}
       if(!initial.complete){entry.reason='INITIAL_COLLECTION_INCOMPLETE';continue;}
+      if((aircraftCounts.get(expected.aircraftId)||0)!==1||(routeCounts.get(expected.routeId)||0)!==1){
+        entry.reason='INITIAL_IDENTITY_OR_ROUTE_DUPLICATE';continue;
+      }
       if(!this.settings.dryRun&&this.settings.mutationDeadlineEpochMs!==undefined&&
         Date.now()>this.settings.mutationDeadlineEpochMs-MUTATION_COMPLETION_RESERVE_MS){
         entry.reason='RUN_TIME_BUDGET_EXHAUSTED_BEFORE_EVALUATION';continue;
       }
-      let collection: CollectionResult;
-      try { collection=await this.port.collect(); } catch {entry.reason='FRESH_COLLECTION_FAILED';continue;}
-      const matches=collection.aircraft.filter(a=>a.aircraftId===expected.aircraftId);
-      if(!collection.complete||matches.length!==1||!sameContext(expected,matches[0])){entry.reason='FLEET_CONTEXT_CHANGED_OR_INCOMPLETE';continue;}
-      const current=matches[0];
-      const origin=resolveAircraftOrigin(current,collection,this.settings.aircraftOrigins,this.settings.airlineBases);
+      const origin=resolveAircraftOrigin(expected,initial,this.settings.aircraftOrigins,this.settings.airlineBases);
       if(!origin.origin){entry.reason='ORIGIN_UNAVAILABLE';continue;}
       // A rota existente pode sair da propria base ou retornar para ela.
-      // Mantemos a aeronave em solo apenas se o trecho atual nao incluir a base operacional confirmada.
-      const departingOwnBase=current.from===origin.origin;
-      const returningOwnBase=current.to===origin.origin;
+      const departingOwnBase=expected.from===origin.origin;
+      const returningOwnBase=expected.to===origin.origin;
       if(!departingOwnBase&&!returningOwnBase){entry.reason='ROUTE_DOES_NOT_INCLUDE_OWN_BASE';continue;}
       let fresh: AircraftSnapshot;
-      try {fresh=await this.port.prepare(current);}catch{entry.reason='DEPARTURE_CONTROL_OR_FRESH_DETAILS_UNVERIFIED';continue;}
-      if(fresh.state!=='ready'||!sameContext(current,fresh)){entry.reason='AIRCRAFT_CONTEXT_CHANGED';continue;}
-      const updated={...collection,aircraft:collection.aircraft.map(a=>a.aircraftId===fresh.aircraftId?fresh:a)};
-      const decision=new DemandManager({...this.demand,dryRun:true},this.adaptive).analyze(updated).decisions.find(d=>d.aircraftId===fresh.aircraftId)!;
+      try {fresh=await this.port.prepare(expected);}catch{entry.reason='DEPARTURE_CONTROL_OR_FRESH_DETAILS_UNVERIFIED';continue;}
+      if(fresh.state!=='ready'||!sameContext(expected,fresh)){entry.reason='AIRCRAFT_CONTEXT_CHANGED';continue;}
+      const key=demandPoolKey(fresh,this.demand.poolScope);
+      if(inconsistentPools.has(key)){entry.reason='DEMAND_POOL_TOTALS_INCONSISTENT_AT_INITIAL_COLLECTION';continue;}
+      if(validDemandCabins(fresh.remaining)){
+        const ceiling=poolRemaining.get(key);
+        poolRemaining.set(key,ceiling?minCabins(ceiling,fresh.remaining):{...fresh.remaining});
+      }
+      const ceiling=poolRemaining.get(key);
+      const boundedFresh=ceiling&&validDemandCabins(fresh.remaining)?{...fresh,remaining:minCabins(fresh.remaining,ceiling)}:fresh;
+      // Analyze only the freshly re-read target. Global uniqueness/completeness came
+      // from the initial full snapshot; the pool ceiling conservatively carries
+      // shared-demand consumption across targets in this run.
+      const decision=new DemandManager({...this.demand,dryRun:true},this.adaptive).analyze({
+        aircraft:[boundedFresh],complete:true,expectedRoutes:1,warnings:[]
+      }).decisions[0];
       entry.demand=decision;
       if(decision.decision!=='would_depart'){entry.reason=decision.reason;continue;}
       entry.reason=decision.reason;
@@ -133,9 +160,14 @@ export class IndividualDepartureExecutor {
         if(!fuelTrackingComplete){entry.reason='FUEL_BUDGET_UNVERIFIED_AFTER_PRIOR_DEPARTURE';continue;}
         if(fuelEvidence&&available<fuelEvidence.fuelLbs){entry.reason='FUEL_STOCK_INSUFFICIENT_BY_VERIFIED_HISTORY';continue;}
       }
+      const reserveDemand=()=>{
+        if(!validDemandCabins(decision.possiblePassengers))return;
+        const current=poolRemaining.get(key);
+        if(current)poolRemaining.set(key,subtractCabins(current,decision.possiblePassengers));
+      };
       if(this.settings.dryRun){
         this.attemptedAircraft.add(fresh.aircraftId);this.attemptedRoutes.add(fresh.routeId);
-        entry.status='would_depart';await persist();continue;
+        entry.status='would_depart';reserveDemand();await persist();continue;
       }
       if(this.settings.mutationDeadlineEpochMs!==undefined&&
         Date.now()>this.settings.mutationDeadlineEpochMs-MUTATION_COMPLETION_RESERVE_MS){
@@ -172,6 +204,7 @@ export class IndividualDepartureExecutor {
         if((['Y','J','F'] as const).some(k=>!Number.isSafeInteger(after.onboard![k])||after.onboard![k]<0||after.onboard![k]>after.capacity![k]))
           throw new Error('CONFIRM_ONBOARD_INVALID');
         entry.status='departed';entry.actualOnboard=after.onboard;entry.reason='NATIVE_INFLIGHT_IDENTITY_COUNTDOWN_AND_ONBOARD_CONFIRMED';
+        reserveDemand();
         if(this.settings.fuelHoldingLbsAtRunStart!==undefined){
           if(fuelEvidence)fuelCommitted+=fuelEvidence.fuelLbs;
           else fuelTrackingComplete=false;
