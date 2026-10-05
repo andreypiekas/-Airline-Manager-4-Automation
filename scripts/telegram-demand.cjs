@@ -31,6 +31,7 @@ function runSummaryMessage(dir='test-results/demand',botResult=process.env.BOT_R
  const status=d?.run?.stale?'IGNORADA':botResult==='success'?'SUCESSO':botResult==='failure'?'FALHA':botResult==='skipped'?'IGNORADA':String(botResult||'DESCONHECIDO').toUpperCase();
  const n=v=>Number.isSafeInteger(v)?String(v):'n/d',fmt=v=>Number.isSafeInteger(v)?v.toLocaleString('en-US'):'n/d';
  const lines=[`✈️ AM4 • ${status}${process.env.GITHUB_RUN_NUMBER?` • run #${process.env.GITHUB_RUN_NUMBER}`:''}`];
+ if(Array.isArray(d?.bases?.effective)&&d.bases.effective.length)lines.push(`Bases: ${d.bases.effective.join(', ')}${d.bases.status==='observed'?' • live':' • fallback'}`);
  if(d?.fleet)lines.push(`Frota: ${n(d.fleet.seen)} | voo ${n(d.fleet.inflight)} | prontas ${n(d.fleet.ready)}`);
  if(d?.demand)lines.push(`Demanda: ${n(d.demand.sufficient)}/${n(d.demand.evaluated)} suficientes | insuf. ${n(d.demand.insufficient)} | indispon. ${n(d.demand.unavailable)}`);
  if(d?.departures)lines.push(`Decolagens: ${n(d.departures.departed)}/${n(d.departures.evaluated)} confirmadas | retidas ${n(d.departures.held)} | incertas ${n(d.departures.unknown)}`);
