@@ -1,43 +1,72 @@
-# Referências de rotas e calendário de preços
+# Dados de referência
 
-> **Estado atual (05/10/2026):** estas fontes continuam **somente informativas**. A automação de produção usa preço live, demanda observada e gates próprios; nenhum catálogo, planilha ou calendário externo autoriza mutação.
+O diretório `data/reference/` contém catálogos e referências estáticas usadas para cruzamentos, diagnóstico e pesquisa.
 
+> [!IMPORTANT]
+> Dados estáticos **não autorizam mutações**. Produção depende de observações live e dos gates de cada módulo.
 
-Integração exclusivamente informativa, em simulação. Não altera rotas, tarifas, compras ou decolagens. O relatório `test-results/demand/reference-report.json` acompanha os artefatos de demanda do GitHub Actions. Nenhum arquivo original ou credencial é necessário no workflow.
+## Aeroportos
 
-## Rotas
+`airports.json` contém o catálogo usado para converter IDs nativos observados no AM4 em códigos IATA quando a correspondência é única e não conflitante.
 
-Importação de `All_routes.xlsx`: 1.003.236 linhas examinadas, 4.651 registros direcionais relacionados a XAP, GRU ou DTW, sem conflitos detectados entre duplicatas direcionais. São referências estáticas, não demanda restante. Cada registro preserva linha de origem; o catálogo registra SHA-256 do arquivo. A comparação com os dados brutos A:H de `Rotas por Hub 2.3.xlsx` encontrou 4.521 correspondências direcionais e nenhuma diferença de distância.
+Esse catálogo suporta a descoberta dinâmica de hubs.
 
-Para cada aeronave com origem resolvida, configuração válida e alcance conhecido, o relatório lista até dez destinos dentro do alcance direto. Prioriza cobertura dos assentos configurados pela demanda de referência, com desempate por distância menor e código do destino. Classes sem assentos não penalizam a avaliação. Registros invertidos preservam `sourceDirection`: isso não confirma a demanda do sentido inverso. A lista é uma fila de pesquisa, não uma classificação de lucro ou garantia das melhores rotas.
+## Aeronaves e rotas
 
-A coleta incompleta impede a criação da lista. A origem continua sendo resolvida pelas bases XAP/GRU/DTW e pelas configurações explícitas, incluindo exceções cadastradas explicitamente pelo operador. Duas bases na mesma rota exigem desambiguação. Revisão no retorno e revisão diária continuam sob a política existente.
+Referências de modelos e rotas podem ser usadas para:
 
-Antes de avaliar uma troca, faltam cotações atuais por sentido, demanda restante por classe, reservas de outras aeronaves, preços automáticos, tempos, pistas e custos completos. Por isso `remainingDemand` e `estimatedProfit` ficam nulos e `mutationAuthorized` é sempre falso. O catálogo não alimenta artificialmente o DemandManager nem marca uma revisão econômica como concluída.
+- validar alcance;
+- organizar candidatos;
+- comparar identificadores;
+- produzir diagnósticos;
+- orientar pesquisa.
 
-## Combustível e CO₂
+Elas não substituem:
 
-Os PDFs para meses de 30 e 31 dias usam Brasília/GMT−3 e avisam que os preços podem sofrer alteração sem aviso prévio. As páginas são imagens. A extração OCR gerou 418 horários de combustível e 588 de CO₂ no calendário de 30 dias; 429 e 589 no de 31 dias. Todos permanecem `verified: false` e `ocr-unverified`: a extração pode omitir linhas ou ler números incorretamente, mesmo sem erro estrutural. A origem e seu SHA-256 ficam registrados.
+- demanda restante;
+- Auto Price atual;
+- custos operacionais atuais;
+- estado real da aeronave;
+- controles nativos da interface.
 
-O relatório seleciona o calendário pelo número real de dias do mês em GMT−3. Fevereiro não é coberto. Mostra o preço de referência somente se o minuto consultado estiver explicitamente listado; não presume que o preço persiste nos horários omitidos. Mostra até cinco próximos horários listados do mesmo dia, sem executar agendamentos nem compras. Dias sem dados válidos ou com horários duplicados/desordenados ficam indisponíveis. Toda decisão futura deve conferir o preço visível no jogo; o calendário nunca autoriza compra.
+Uma lista de candidatos baseada em referência não é garantia de melhor rota global.
 
-## Calculadora
+## Fuel e CO₂
 
-`CALCULADORAS AM4 v1.41 (1).xlsx` confirma os multiplicadores Y 1,10 / J 1,08 / F 1,06 e truncamento para múltiplo de dez. A implementação existente continua usando o preço automático observado, sem substituir esse valor por estimativas de distância. A planilha apresenta fórmulas de preço por distância diferentes nos modos Easy e Realism; resultados em cache e wrappers `__xludf.DUMMYFUNCTION` não provam recálculo válido.
+Calendários de preço armazenados em `data/reference/` são somente referência.
 
-A coluna de passageiros totais da base de rotas é ponderada (Y + 2J + 3F); não deve ser somada como ocupação física. Células geradas com `#REF!` na planilha de hubs foram excluídas. O lucro simplificado da calculadora desconta combustível e CO₂, mas não todos os custos exigidos pelo otimizador. Reputação não foi adotada como garantia de ocupação após reajuste de tarifa. Esses pontos impedem declarar uma rota a mais lucrativa apenas com as planilhas.
+O módulo de compra exige preço live. Uma previsão, OCR ou tabela externa nunca substitui essa leitura.
 
-## Reprodução offline
+## Pricing
 
-Execute somente sobre os arquivos fornecidos, em um diretório separado do repositório:
+Referências históricas ajudaram a validar os multiplicadores PAX implementados no código:
 
-```bash
-python scripts/import-route-references.py /caminho/dos/arquivos
-python scripts/import-fuel-calendar.py /caminho/dos/arquivos
+```text
+Y = Auto × 1.10
+J = Auto × 1.08
+F = Auto × 1.06
 ```
 
-O primeiro usa apenas a biblioteca padrão Python e lê XML em streaming. O segundo requer PyMuPDF, Pillow, NumPy e Tesseract; suas imagens intermediárias ficam em diretório temporário. Importação é uma tarefa manual offline, não executada no GitHub Actions. As tabelas OCR sempre voltam a não verificadas ao reimportar. Preserve os originais para auditoria; não é preciso publicá-los.
+A fonte operacional continua sendo o Auto Price observado na rota ativa.
 
-## Limites atuais
+## Reprodutibilidade
 
-O journal operacional e a automação principal já estão em produção. Estas referências, porém, permanecem fora da cadeia de autorização: não substituem demanda restante, preço live, comparação econômica verificada ou confirmação nativa. Consulte [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) para o estado atual.
+Quando scripts de importação forem usados, preserve:
+
+- origem do arquivo;
+- hash;
+- schema produzido;
+- conflitos encontrados;
+- indicador de verificação.
+
+OCR deve permanecer marcado como não verificado até conferência independente.
+
+## Cadeia de autorização
+
+Nenhuma referência estática deve, isoladamente, definir:
+
+- `mutationAuthorized=true`;
+- `comparisonReady=true`;
+- autorização de compra;
+- autorização de departure;
+- autorização de reroute.
