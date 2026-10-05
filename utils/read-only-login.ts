@@ -31,8 +31,9 @@ export async function loginForReadOnlyCollection(page: Page, env: NodeJS.Process
     onPhase('wait_intro');
     await page.locator('#am4-intro').waitFor({state:'hidden',timeout});
     await assertNoInteractiveChallenge(page,'login:company-loaded');
-  } catch {
-    // Discard Playwright errors: their call logs can contain form input values.
+  } catch (error) {
+    if ((error as Error)?.message === 'INTERACTIVE_CHALLENGE_DETECTED_STOP') throw error;
+    // Discard other Playwright errors: their call logs can contain form input values.
     throw new Error('READ_ONLY_LOGIN_OR_LOADING_FAILED');
   }
 }
