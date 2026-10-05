@@ -10,6 +10,7 @@ import { routeExecutionSettings, runRouteExecution } from '../optimization/route
 import { withRunLock } from '../utils/run-lock';
 import { loginForReadOnlyCollection } from '../utils/read-only-login';
 import { runInitialUiHealthCheck } from '../utils/ui-health';
+import { assertNoInteractiveChallenge } from '../utils/challenge-guard';
 import { evaluateRunPhaseBudget, MUTATION_PHASE_START_MINIMUM_MS } from '../utils/run-time-budget';
 import { writeSemiAutomaticSummary } from '../utils/semi-automatic';
 import { test } from '@playwright/test';
@@ -136,6 +137,7 @@ test('All Operations', async ({ page }) => {
       }
 
       // Fecha paineis laterais comuns por uma area neutra conhecida da interface.
+      await assertNoInteractiveChallenge(page,'ui:before-close-panel');
       await page.mouse.click(400, 20);
       await GeneralUtils.randomSleep(500, 900);
 
@@ -318,6 +320,7 @@ test('All Operations', async ({ page }) => {
   /** Fecha o painel lateral clicando em uma area neutra conhecida da interface. */
   const clickBlankSpaceTop = async () => {
     console.log('Clicando fora do painel para fechar o menu...');
+    await assertNoInteractiveChallenge(page,'legacy-ui:before-close-panel');
     await page.mouse.click(400, 20);
     await GeneralUtils.randomSleep(300, 600);
   };
