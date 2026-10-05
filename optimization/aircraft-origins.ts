@@ -20,9 +20,10 @@ export function readAircraftOrigins(raw: string | undefined): ReadonlyMap<string
 
 /** Bases confirmed by the owner; this policy is configurable and does not prove a return. */
 export function readAirlineBases(raw: string | undefined): string[] {
+  if (raw === undefined || raw.trim() === '') return [];
   try {
-    const value: unknown = JSON.parse(raw?.trim() || '["XAP","GRU","DTW","TXL"]');
-    if (!Array.isArray(value) || !value.length || value.some(v => typeof v !== 'string' || !/^[A-Z]{3}$/.test(v)) || new Set(value).size !== value.length) throw new Error();
+    const value: unknown = JSON.parse(raw.trim());
+    if (!Array.isArray(value) || value.some(v => typeof v !== 'string' || !/^[A-Z]{3}$/.test(v)) || new Set(value).size !== value.length) throw new Error();
     return value;
   } catch { throw new Error('AIRLINE_BASES_JSON invalido: informe lista unica de codigos IATA.'); }
 }
@@ -38,7 +39,7 @@ export function resolveAircraftOrigin(a: AircraftSnapshot, collection: Collectio
   return unavailable(matches.length === 2 ? 'Rota entre duas bases; exige origem explicita para esta aeronave.' : 'Nenhum aeroporto da rota pertence as bases configuradas.');
 }
 
-/** Owner-confirmed exceptions; environment entries can explicitly override them. */
+/** Explicit per-aircraft origins come only from the user's environment configuration. */
 export function configuredAircraftOrigins(raw: string | undefined): ReadonlyMap<string, string> {
-  return new Map([['22316469', 'GRU'], ...readAircraftOrigins(raw)]);
+  return readAircraftOrigins(raw);
 }
