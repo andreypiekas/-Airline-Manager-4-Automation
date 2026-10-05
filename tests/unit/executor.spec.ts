@@ -80,10 +80,10 @@ test('persisted uncertain departure quarantine blocks before any click',async()=
 
 test('two identical verified fuel observations are enough for a conservative route requirement',async()=>{
  const history={status:'observed' as const,observedAt:new Date().toISOString(),source:'inspected-aircraft-flight-history' as const,complete:false as const,comparisonReady:false as const,mutationAuthorized:false as const,entries:[
-  {relativeTime:'6 hours ago',from:'TXL',to:'DTW',registrationLabel:'TEST',co2Quotas:100,onboard:{Y:80,J:0,F:0},fuelLbs:126220,revenue:1000},
-  {relativeTime:'12 hours ago',from:'DTW',to:'TXL',registrationLabel:'TEST',co2Quotas:100,onboard:{Y:80,J:0,F:0},fuelLbs:126220,revenue:1000}
+  {relativeTime:'6 hours ago',from:'TXL',to:'GRU',registrationLabel:'TEST',co2Quotas:100,onboard:{Y:80,J:0,F:0},fuelLbs:126220,revenue:1000},
+  {relativeTime:'12 hours ago',from:'GRU',to:'TXL',registrationLabel:'TEST',co2Quotas:100,onboard:{Y:80,J:0,F:0},fuelLbs:126220,revenue:1000}
  ]};
- const a=snapshot({from:'DTW',to:'TXL',routeLabel:'DTW - TXL',flightHistory:history});
+ const a=snapshot({from:'GRU',to:'TXL',routeLabel:'DTW - TXL',flightHistory:history});
  const s=setup({initial:collection([a]),prepared:a,fuelHoldingLbsAtRunStart:500000});
  const r=await s.executor.run();
  expect(s.clicks()).toBe(1);
