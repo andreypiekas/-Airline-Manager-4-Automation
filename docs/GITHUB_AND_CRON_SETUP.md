@@ -1,36 +1,86 @@
-# Configuração completa do GitHub e cron-job.org
+# Configuração completa — Fork, GitHub Actions e cron-job.org
 
-Este guia prepara o **Airline Manager 4 Automation** para execução pelo GitHub Actions e, opcionalmente, para acionamento periódico pelo **cron-job.org**.
+Este é o fluxo recomendado para utilizar o **Airline Manager 4 Automation** na sua própria conta:
+
+```text
+Fork do repositório
+        ↓
+habilitar GitHub Actions no fork
+        ↓
+configurar Secrets e Variables no fork
+        ↓
+executar primeiro em simulation
+        ↓
+validar os relatórios
+        ↓
+executar em production
+        ↓
+configurar cron-job.org apontando para o fork
+```
 
 > [!IMPORTANT]
-> As credenciais do Airline Manager 4 devem permanecer exclusivamente nos **GitHub Actions Secrets**. Não coloque e-mail, senha, tokens do Telegram ou conteúdo do journal no cron-job.org.
+> **Não configure sua conta diretamente no repositório original.** Cada usuário deve criar um **fork** e executar a automação no próprio repositório.
 
-## 1. Preparar o repositório
+> [!WARNING]
+> Projeto não oficial. Automação pode contrariar regras ou termos do Airline Manager 4. Não existe garantia contra bloqueios, limitações ou banimento.
 
-O workflow principal é:
+## 1. Criar seu fork
+
+Abra o repositório original:
 
 ```text
-.github/workflows/playwright.yml
+https://github.com/andreypiekas/Airline-Manager-4-Automation
 ```
 
-A execução é iniciada por `workflow_dispatch`, manualmente pelo GitHub ou por uma chamada autenticada à API.
-
-Para o repositório oficial:
+No canto superior direito:
 
 ```text
-andreypiekas/Airline-Manager-4-Automation
+Fork
+→ Create a new fork
 ```
 
-> [!NOTE]
-> O runtime de produção possui guards de contexto para evitar execução em ambiente inesperado. Se você estiver adaptando o projeto para outro repositório, revise esses guards antes de tentar produção.
+Mantenha a branch padrão `main`.
 
-## 2. Configurar GitHub Actions Secrets
-
-No GitHub:
+O resultado será semelhante a:
 
 ```text
-Repository
-→ Settings
+SEU_USUARIO/Airline-Manager-4-Automation
+```
+
+A partir daqui, **todas as configurações descritas neste guia são feitas no seu fork**.
+
+### Atualizações futuras
+
+Quando o projeto original receber melhorias, use o recurso de sincronização do GitHub:
+
+```text
+Sync fork
+→ Update branch
+```
+
+Revise alterações operacionais antes de colocá-las em produção.
+
+## 2. Habilitar GitHub Actions no fork
+
+Workflows de forks podem precisar ser habilitados antes da primeira execução.
+
+No seu fork:
+
+```text
+Actions
+→ I understand my workflows, go ahead and enable them
+```
+
+Depois confirme que os workflows aparecem na aba **Actions**.
+
+> Secrets do repositório original não são transferidos para o seu fork. Você precisa configurar os seus próprios Secrets e Variables.
+
+## 3. Configurar Actions Secrets
+
+No **seu fork**:
+
+```text
+Settings
 → Secrets and variables
 → Actions
 → Secrets
@@ -41,25 +91,26 @@ Repository
 
 | Secret | Valor |
 | --- | --- |
-| `EMAIL` | E-mail da conta utilizada no AM4 |
-| `PASSWORD` | Senha da conta utilizada no AM4 |
+| `EMAIL` | E-mail da sua conta no Airline Manager 4 |
+| `PASSWORD` | Senha da sua conta no Airline Manager 4 |
 
-### Opcionais — Telegram
+### Telegram opcional
 
 | Secret | Valor |
 | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | Token fornecido pelo BotFather |
 | `TELEGRAM_CHAT_ID` | ID da conversa ou grupo que receberá o resumo |
 
-O `TELEGRAM_CHAT_ID` é o ID do destino da mensagem, não o ID do próprio bot.
+O `TELEGRAM_CHAT_ID` é o ID da conversa, não o ID do próprio bot.
 
-## 3. Configurar GitHub Actions Variables
+Não coloque Secrets em arquivos, commits, Variables públicas ou no cron-job.org.
 
-No GitHub:
+## 4. Configurar Actions Variables
+
+No **seu fork**:
 
 ```text
-Repository
-→ Settings
+Settings
 → Secrets and variables
 → Actions
 → Variables
@@ -71,15 +122,25 @@ Repository
 | Variable | Valor sugerido | Observação |
 | --- | --- | --- |
 | `RETURN_JOURNAL_SCOPE` | `am4-prod` | Namespace do estado persistente |
-| `AIRLINE_BASES_JSON` | `["AAA","BBB"]` | Substitua pelos IATAs dos seus hubs; funciona como fallback |
-| `AIRCRAFT_ORIGINS_JSON` | `[]` | Overrides por aircraftId quando necessários |
-| `ROUTE_REVIEW_TIMEZONE` | `America/Sao_Paulo` | Fuso usado na revisão diária |
-| `MAX_INDIVIDUAL_DEPARTURES` | `20` | Limite por execução |
-| `EXECUTE_INDIVIDUAL` | `true` | Compatibilidade do resolvedor de departures |
+| `AIRLINE_BASES_JSON` | configure seus hubs | Fallback para funções que exigem origem operacional |
+| `AIRCRAFT_ORIGINS_JSON` | `[]` | Overrides por aircraftId, se necessários |
+| `ROUTE_REVIEW_TIMEZONE` | seu fuso | Fuso da revisão diária |
+| `EXECUTE_INDIVIDUAL` | `true` | Compatibilidade do resolvedor |
+| `MAX_INDIVIDUAL_DEPARTURES` | `20` | Hard cap atual: 20 |
 
-A descoberta live de hubs é a fonte principal quando pode ser comprovada. `AIRLINE_BASES_JSON` é um fallback e deve conter **os hubs da sua própria companhia**, não os exemplos acima.
+Exemplo:
 
-O executor de departure é base-agnostic: a lista de hubs não limita rotas já existentes.
+```text
+AIRLINE_BASES_JSON=["AAA","BBB"]
+AIRCRAFT_ORIGINS_JSON=[]
+ROUTE_REVIEW_TIMEZONE=America/Sao_Paulo
+```
+
+Substitua `AAA` e `BBB` pelos IATAs reais dos hubs da sua companhia.
+
+A descoberta live é a fonte principal quando todos os hubs podem ser resolvidos. `AIRLINE_BASES_JSON` funciona como fallback.
+
+A lista de hubs **não limita departures de rotas já existentes**.
 
 ### Demanda
 
@@ -91,7 +152,7 @@ O executor de departure é base-agnostic: a lista de hubs não limita rotas já 
 | `DEMAND_MAX_AGE_SECONDS` | `300` |
 | `DEMAND_PROLONGED_HOLD_MINUTES` | `180` |
 
-### Pesquisa, review e reroute
+### Route research, review e reroute
 
 | Variable | Valor sugerido |
 | --- | ---: |
@@ -106,9 +167,9 @@ O executor de departure é base-agnostic: a lista de hubs não limita rotas já 
 | `ENABLE_ROUTE_EXECUTION` | `true` |
 | `ROUTE_MAX_REROUTES_PER_RUN` | `1` |
 
-`ENABLE_ROUTE_EXECUTION=true` não força reroute. A mutação ainda depende de comparação completa, alvo fresco e dos gates `comparisonReady` e `mutationAuthorized`.
+`ENABLE_ROUTE_EXECUTION=true` não força uma troca. O executor ainda exige comparação completa, alvo fresco, `comparisonReady` e `mutationAuthorized`.
 
-### Pricing PAX
+### Pricing
 
 | Variable | Valor sugerido |
 | --- | ---: |
@@ -116,7 +177,7 @@ O executor de departure é base-agnostic: a lista de hubs não limita rotas já 
 | `ENABLE_TICKET_PRICING_EXECUTION` | `true` |
 | `TICKET_PRICING_MAX_ADJUSTMENTS_PER_RUN` | `5` |
 
-Política implementada:
+Política PAX:
 
 ```text
 Y = Auto × 1.10
@@ -135,7 +196,7 @@ F = Auto × 1.06
 | `MAX_CO2_PURCHASE_PER_RUN` | `0` |
 | `MIN_CASH_RESERVE` | `0` |
 
-Valor `0` nos limites de quantidade significa usar o espaço disponível, respeitando orçamento e demais guards.
+Revise os tetos antes de usar produção. Eles são política do bot, não valores oficiais ou garantidos pelo jogo.
 
 ### Manutenção e campanhas
 
@@ -150,9 +211,9 @@ Valor `0` nos limites de quantidade significa usar o espaço disponível, respei
 | `CAMPAIGN_DURATION` | `4` |
 | `ENABLE_DEPART` | `true` |
 
-## 4. Configuração sugerida completa
+## 5. Exemplo completo de Variables
 
-Exemplo para copiar e adaptar em **Actions → Variables**:
+Use como referência e adapte antes da produção:
 
 ```text
 RETURN_JOURNAL_SCOPE=am4-prod
@@ -204,38 +265,58 @@ CAMPAIGN_DURATION=4
 ENABLE_DEPART=true
 ```
 
-## 5. Testar manualmente no GitHub
+## 6. Primeira execução: Simulation
 
-Abra:
+No seu fork:
 
 ```text
-Repository
-→ Actions
+Actions
 → Automacao Airline Manager 4
 → Run workflow
 ```
 
-Para uma primeira inspeção, use:
+Selecione:
 
 ```text
 departure_mode = simulation
 ```
 
-Depois de validar Secrets, Variables, Summary e artifacts, produção pode usar:
+A simulation é a primeira validação recomendada porque mantém as principais mutações desativadas.
+
+Confira:
+
+- workflow concluído;
+- GitHub Step Summary;
+- hubs detectados;
+- frota;
+- demanda;
+- artifacts;
+- ausência de erro de configuração.
+
+## 7. Primeira execução de produção
+
+Somente depois da simulation:
 
 ```text
-departure_mode = production
+Actions
+→ Automacao Airline Manager 4
+→ Run workflow
+→ departure_mode = production
 ```
 
-Uma run verde não significa obrigatoriamente que houve mutação. HOLDs podem ser o resultado correto.
+Revise o Summary depois da run.
+
+`success` significa que o fluxo terminou de forma consistente; pode haver zero mutações se os gates resultarem em HOLD.
 
 ---
 
-# Configurar cron-job.org
+# cron-job.org
 
-## 6. Criar um token do GitHub
+## 8. Criar um Fine-grained PAT
 
-Na sua conta GitHub:
+O cron precisa acionar o workflow **do seu fork**.
+
+Na sua conta do GitHub:
 
 ```text
 Settings
@@ -245,17 +326,21 @@ Settings
 → Generate new token
 ```
 
-Recomendação:
+Configuração recomendada:
 
-- dê um nome específico, por exemplo `am4-cron-dispatch`;
-- limite o acesso somente ao repositório do bot;
-- defina uma expiração adequada;
-- em **Repository permissions**, conceda **Actions: Read and write**;
-- mantenha as demais permissões no mínimo necessário.
+```text
+Token name: am4-cron-dispatch
+Repository access: Only select repositories
+Repository: SEU_USUARIO/Airline-Manager-4-Automation
+Repository permissions:
+  Actions: Read and write
+```
 
-Copie o token no momento da criação. Ele será usado apenas pelo cron-job.org para disparar o workflow.
+Defina uma expiração adequada e guarde o token em local seguro.
 
-## 7. Criar o cron job
+O endpoint de `workflow_dispatch` exige permissão de escrita em Actions.
+
+## 9. Criar o cron job
 
 No cron-job.org:
 
@@ -265,29 +350,23 @@ Dashboard
 → Create cronjob
 ```
 
-### Geral
+### URL
+
+Use **o seu fork**, não o repositório original:
 
 ```text
-Title: Airline Manager 4 Automation
-URL: https://api.github.com/repos/OWNER/REPOSITORY/actions/workflows/playwright.yml/dispatches
-Schedule: a cada 30 minutos
+https://api.github.com/repos/SEU_USUARIO/Airline-Manager-4-Automation/actions/workflows/playwright.yml/dispatches
 ```
 
-No repositório oficial, o endpoint é:
+Se você alterou o nome do fork, substitua também o nome do repositório na URL.
 
-```text
-https://api.github.com/repos/andreypiekas/Airline-Manager-4-Automation/actions/workflows/playwright.yml/dispatches
-```
-
-### Request method
+### Método
 
 ```text
 POST
 ```
 
 ### Headers
-
-Adicione:
 
 ```text
 Accept: application/vnd.github+json
@@ -298,9 +377,7 @@ Content-Type: application/json
 
 Não coloque o token na URL.
 
-### Request body
-
-A configuração mais simples usa os defaults do workflow:
+### Body
 
 ```json
 {
@@ -308,69 +385,42 @@ A configuração mais simples usa os defaults do workflow:
 }
 ```
 
-Isso usa `departure_mode=production` porque esse é o default atual do workflow.
+O workflow atual usa `production` como modo padrão. Portanto, o cron só deve ser ativado depois que a execução manual de produção estiver validada.
 
-Para cron periódico, mantenha `aktifkan_random_delay=false`; o workflow já possui controle de concorrência e o atraso aleatório pode consumir desnecessariamente a janela entre execuções.
+### Frequência
 
-## 8. Resultado esperado
+Uma referência prática é:
 
-Quando o GitHub aceita o dispatch, a resposta normal da API é:
+```text
+a cada 30 minutos
+```
+
+O workflow possui controle de concorrência para não operar duas runs simultaneamente.
+
+Não ative atraso aleatório no cron sem uma necessidade específica.
+
+## 10. Resposta esperada
+
+Quando o GitHub aceita o dispatch:
 
 ```text
 HTTP 204 No Content
 ```
 
-Isso significa apenas que **o GitHub aceitou iniciar o workflow**. Não significa que o bot terminou nem que realizou operações no jogo.
+`204` significa apenas que a API aceitou criar a execução.
 
-Depois do teste, confira:
+Depois confirme no **seu fork**:
 
 ```text
-Repository
-→ Actions
+Actions
 → Automacao Airline Manager 4
 ```
 
-## 9. Frequência
-
-Para o ambiente atual, **30 minutos** é uma cadência prática.
-
-O workflow possui:
-
-```text
-concurrency.group: airline-manager-4-main
-cancel-in-progress: false
-```
-
-Isso evita duas execuções operacionais simultâneas. Mesmo assim, não use uma frequência menor apenas para compensar runs longas.
-
-## 10. Segurança do cron
-
-No cron-job.org armazene somente:
-
-- URL da API;
-- token de dispatch do GitHub;
-- headers;
-- body do `workflow_dispatch`.
-
-Não armazene lá:
-
-- `EMAIL`;
-- `PASSWORD`;
-- `TELEGRAM_BOT_TOKEN`;
-- `TELEGRAM_CHAT_ID`;
-- cookies;
-- journal;
-- dados da companhia.
-
-Essas informações pertencem ao GitHub Secrets/estado persistente.
-
-## 11. Teste equivalente com curl
-
-Antes de configurar o cron, o dispatch pode ser validado manualmente:
+## 11. Teste com curl
 
 ```bash
 curl --request POST \
-  --url "https://api.github.com/repos/OWNER/REPOSITORY/actions/workflows/playwright.yml/dispatches" \
+  --url "https://api.github.com/repos/SEU_USUARIO/Airline-Manager-4-Automation/actions/workflows/playwright.yml/dispatches" \
   --header "Accept: application/vnd.github+json" \
   --header "Authorization: Bearer SEU_TOKEN_FINE_GRAINED" \
   --header "X-GitHub-Api-Version: 2022-11-28" \
@@ -378,46 +428,83 @@ curl --request POST \
   --data '{"ref":"main"}'
 ```
 
-Resposta sem corpo com status `204` é o comportamento esperado.
+Resposta esperada: `204`.
 
-## 12. Troubleshooting do cron
+## 12. O que fica em cada serviço
+
+### GitHub Secrets
+
+```text
+EMAIL
+PASSWORD
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID
+```
+
+### GitHub Variables
+
+Políticas de demanda, rotas, pricing, supplies, manutenção e execução.
+
+### cron-job.org
+
+Somente:
+
+- URL de dispatch do **seu fork**;
+- Fine-grained PAT;
+- headers;
+- body do workflow_dispatch;
+- agenda.
+
+Nunca coloque credenciais do AM4 no cron-job.org.
+
+## 13. Troubleshooting
+
+### O fork não executa workflows
+
+Abra a aba **Actions** no fork e habilite os workflows.
 
 ### 401 — Bad credentials
 
-Token inválido, expirado ou copiado incorretamente.
+PAT inválido, expirado ou copiado incorretamente.
 
 ### 403 — Forbidden
 
-Revise o acesso do Fine-grained PAT ao repositório e a permissão **Actions: Read and write**.
+Confirme:
+
+- PAT vinculado ao **fork**;
+- `Actions: Read and write`;
+- token ainda válido.
 
 ### 404 — Not Found
 
 Confira:
 
-- owner;
-- nome do repositório;
-- nome `playwright.yml`;
-- acesso do token ao repositório.
+- seu usuário/organização;
+- nome do fork;
+- `playwright.yml`;
+- acesso do PAT ao fork.
 
 ### 422 — Unprocessable Entity
 
-Normalmente indica `ref` inexistente ou inputs incompatíveis.
+Confira se a branch `main` existe e se o body contém um `ref` válido.
 
-### 204, mas não houve alteração no jogo
+### 204, mas nada mudou no jogo
 
-O dispatch funcionou. Abra o GitHub Actions e consulte o Summary. O bot pode ter concluído corretamente em HOLD, sem mutações.
+O cron funcionou. Abra a run no GitHub. O bot pode ter terminado em HOLD, não haver aeronaves prontas ou uma fase de segurança ter bloqueado a mutação.
 
-## 13. Checklist final
+## 14. Checklist
 
-- [ ] `EMAIL` configurado como Secret
-- [ ] `PASSWORD` configurado como Secret
-- [ ] Variables operacionais revisadas
-- [ ] `AIRLINE_BASES_JSON` contém os hubs corretos do ambiente
-- [ ] Telegram configurado, se desejado
-- [ ] run manual em `simulation` validada
-- [ ] run de produção revisada
-- [ ] Fine-grained PAT criado somente para dispatch
-- [ ] cron-job.org configurado com POST
-- [ ] retorno `204` confirmado
-- [ ] nova run apareceu no GitHub Actions
-- [ ] frequência do cron revisada
+- [ ] fiz fork de `andreypiekas/Airline-Manager-4-Automation`
+- [ ] estou configurando **meu fork**, não o original
+- [ ] habilitei GitHub Actions no fork
+- [ ] criei `EMAIL` e `PASSWORD` como Secrets
+- [ ] configurei `AIRLINE_BASES_JSON` com meus hubs
+- [ ] revisei as demais Variables
+- [ ] configurei Telegram, se desejado
+- [ ] executei `simulation`
+- [ ] revisei Summary e artifacts
+- [ ] executei produção manualmente
+- [ ] criei PAT limitado ao meu fork
+- [ ] configurei cron-job.org com a URL do meu fork
+- [ ] confirmei retorno HTTP `204`
+- [ ] confirmei a nova run na aba Actions
