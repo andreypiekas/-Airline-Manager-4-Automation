@@ -24,7 +24,8 @@ Antes de um clique real, o executor exige:
 - nenhuma quarentena persistente para a aeronave/rota;
 - limite por run disponível;
 - orçamento de tempo suficiente;
-- política de Fuel satisfeita quando houver evidência histórica utilizável.
+- política de Fuel satisfeita quando houver evidência histórica utilizável;
+- campanhas obrigatórias confirmadas como ativas quando `ENABLE_CAMPAIGN=true`.
 
 ## Fluxo
 
@@ -34,12 +35,13 @@ Antes de um clique real, o executor exige:
 4. reabrir os detalhes do alvo;
 5. reler estado, layout e demanda;
 6. executar novamente a análise de demanda para o alvo;
-7. verificar guards de recursos e quarentenas;
-8. persistir a intenção;
-9. executar no máximo um clique nativo;
-10. reler o alvo;
-11. confirmar estado em voo, countdown e passageiros embarcados;
-12. persistir o resultado.
+7. verificar guards de recursos, quarentenas e campanhas;
+8. se a campanha exigida não estiver confirmada, manter `CAMPAIGN_NOT_VERIFIED` sem abrir o controle de departure;
+9. persistir a intenção;
+10. executar no máximo um clique nativo;
+11. reler o alvo;
+12. confirmar estado em voo, countdown e passageiros embarcados;
+13. persistir o resultado.
 
 ## Sem retry após clique incerto
 
