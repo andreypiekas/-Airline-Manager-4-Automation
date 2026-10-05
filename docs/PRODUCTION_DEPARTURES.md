@@ -1,111 +1,89 @@
-# Decolagens individuais em produção
+# Decolagens individuais
 
-## Estado atual — 05/10/2026
+O executor de departure processa **rotas já existentes** de forma individual e conservadora.
 
-O executor individual está ativo no workflow principal e já foi validado em produção. Ele opera a **rota existente de qualquer aeronave pronta, em qualquer aeroporto**, quando as evidências permitem. A decolagem não depende mais de a rota conter uma base/hub conhecido.
+## Escopo
 
-Não existe `departAll` como fallback.
+A fase é **base-agnostic**.
 
-## Gates obrigatórios
+Se uma aeronave está pronta e já possui uma rota válida no AM4, ela pode ser avaliada em qualquer aeroporto. Hubs da companhia não são usados como filtro de departure.
 
-Produção real exige:
+A noção de base operacional continua relevante para route review e reroute, mas não para o despacho normal de uma rota já atribuída.
 
-- `DEMAND_DRY_RUN=false`;
-- `ENABLE_DEMAND_MANAGER=true`;
-- `DEMAND_FAIL_SAFE=true`;
-- `DEMAND_EXECUTION_ACK=individual-return-legs-v1`;
-- `GITHUB_ACTIONS=true`;
-- repositório autorizado;
-- `GITHUB_RUN_ATTEMPT=1`;
-- limite entre 1 e 20;
-- pool conservador `airport-pair`;
-- identidade e rota únicas;
-- dados frescos;
-- ausência de quarentena impeditiva;
-- orçamento de tempo suficiente.
+## Gates
 
-Reruns reais são rejeitados. Uma tentativa cujo resultado não possa ser confirmado encerra a sequência com `outcome_unknown` e cria bloqueio persistente.
+Antes de um clique real, o executor exige:
 
-## Fluxo por aeronave
+- coleção inicial completa;
+- aircraftId e routeId únicos;
+- aeronave pronta;
+- contexto ainda igual ao snapshot inicial;
+- leitura fresca de layout e demanda;
+- Demand Manager autorizando a saída;
+- controle nativo de `Depart` visível, habilitado e com handler reconhecido;
+- nenhuma quarentena persistente para a aeronave/rota;
+- limite por run disponível;
+- orçamento de tempo suficiente;
+- política de Fuel satisfeita quando houver evidência histórica utilizável.
 
-1. Coletar a frota e os detalhes completos.
-2. Considerar toda aeronave pronta em uma rota existente, sem filtrar pela base/hub.
-3. Recoletar o alvo antes da decisão.
-4. Validar identidade, routeId, trecho, layout e demanda restante.
-5. Aplicar threshold de demanda e reservas conservadoras.
-6. Verificar estoque de Fuel quando há evidência histórica utilizável.
-7. Validar o handler nativo de Depart e seus parâmetros.
-8. Persistir a intenção antes de clicar.
-9. Executar no máximo um clique nativo para aquele alvo.
-10. Recoletar estado, contador e passageiros embarcados.
-11. Somente marcar `departed` quando a transição é confirmada.
+## Fluxo
 
-Uma falha depois do clique não é “corrigida” com segundo clique.
+1. coletar a frota completa;
+2. selecionar aeronaves que não estão em voo;
+3. validar identidade e unicidade;
+4. reabrir os detalhes do alvo;
+5. reler estado, layout e demanda;
+6. executar novamente a análise de demanda para o alvo;
+7. verificar guards de recursos e quarentenas;
+8. persistir a intenção;
+9. executar no máximo um clique nativo;
+10. reler o alvo;
+11. confirmar estado em voo, countdown e passageiros embarcados;
+12. persistir o resultado.
 
-## Cobertura de aeroportos e bases
+## Sem retry após clique incerto
 
-A fase de decolagem é **base-agnostic**: se o AM4 já possui uma rota válida atribuída à aeronave e o controle nativo de Depart está disponível, o executor pode processá-la independentemente de o aeroporto ser XAP, GRU, DTW, TXL ou qualquer outro aeroporto presente nas rotas da frota.
+Depois que o clique foi tentado, o executor não repete a operação automaticamente.
 
-A descoberta de hubs da companhia continua sendo usada por **route review/reroute**, onde a noção de “retorno à própria base” é necessária. Ela não bloqueia mais o despacho normal de rotas existentes.
+Se a resposta ou a confirmação posterior ficar incerta:
 
-Isso evita que aeronaves permaneçam em solo apenas porque a origem operacional não pôde ser inferida ou porque o trecho atual não contém uma base conhecida.
+```text
+outcome_unknown
+```
 
+A sequência é interrompida e a tentativa é registrada para impedir repetição cega em runs futuras.
+
+## Fuel
+
+Quando a run possui estoque de combustível verificado e o Flight History fornece evidência consistente de consumo para aquele par de aeroportos, o executor reserva esse consumo ao longo da sequência.
+
+Sem evidência suficiente, a política pode manter a aeronave em HOLD em vez de inventar um requisito de combustível.
 
 ## Configuração
 
-No workflow principal:
+Principais parâmetros:
 
-| Item | Padrão atual |
-| --- | --- |
-| `departure_mode` | `production` |
-| `max_individual_departures` | `0` |
-| `MAX_INDIVIDUAL_DEPARTURES` | `20` |
-| `MIN_DEMAND_PERCENTAGE` | `80` |
-| `DEMAND_THRESHOLD_MODE` | `aggregate` |
-| `DEMAND_POOL_SCOPE` | `airport-pair` |
-| `DEMAND_MAX_AGE_SECONDS` | `300` |
+```text
+MAX_INDIVIDUAL_DEPARTURES=20
+MIN_DEMAND_PERCENTAGE=80
+DEMAND_THRESHOLD_MODE=aggregate
+DEMAND_POOL_SCOPE=airport-pair
+DEMAND_MAX_AGE_SECONDS=300
+```
 
-`max_individual_departures=0` usa a Variable do repositório. Um valor positivo no input sobrescreve a Variable. O resolvedor aceita representações inteiras fornecidas pelo GitHub como `0.0` e `5.0`; frações e notação exponencial são rejeitadas.
+`departure_mode=simulation` percorre os mesmos gates sem executar o clique.
 
-`departure_mode=simulation` sempre impede decolagens reais, mesmo que Variables de produção estejam habilitadas.
-
-## Demanda adaptativa
-
-O piso inicial é `MIN_DEMAND_PERCENTAGE`. Histórico verificado pode elevar esse piso para uma aeronave/rota quando houver evidência suficiente. Nunca reduz o threshold abaixo do configurado.
-
-Demanda suficiente é necessária, mas não suficiente: uma quarentena, falta de Fuel, mudança de UI ou inconsistência de identidade ainda bloqueia a decolagem.
-
-## Persistência e quarentenas
-
-O journal registra:
-
-- departures confirmadas;
-- passengers onboard observados;
-- resultados incertos;
-- chegadas posteriormente observadas;
-- evidência de demanda e histórico necessário.
-
-Uma `departure-uncertain` é uma quarentena durável por aeronave/rota e não é automaticamente repetida em runs posteriores.
-
-## Relatórios
+## Relatório
 
 `execution-report.json/.md` registra:
 
-- avaliadas;
+- quantidade avaliada;
 - confirmadas;
+- simuladas;
 - retidas;
 - incertas;
-- motivo por alvo;
-- demanda/capacidade relevante;
-- passageiros embarcados quando confirmados.
+- motivo de cada decisão;
+- evidência de demanda;
+- passageiros embarcados quando disponíveis.
 
-O Summary executivo mostra apenas os totais e estados que exigem atenção. Os detalhes permanecem no artifact `demand-report`.
-
-## Evidência de produção
-
-No repositório novo:
-
-- produção #6: 4 candidatas avaliadas, 2 departures confirmadas, 2 retidas por quarentena, 0 incertas;
-- produção #7: 4 candidatas avaliadas, 0 departures, 4 retidas, 0 incertas — demonstrando que uma run verde pode corretamente não decolar ninguém.
-
-Não use uma execução real apenas para exercitar um caminho de teste. A suíte offline cobre o executor e os guards sem acessar o jogo.
+Uma run verde com zero departures pode ser comportamento correto.
