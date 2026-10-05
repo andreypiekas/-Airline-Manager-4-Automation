@@ -37,6 +37,8 @@ export interface RouteExecutionSettings {
   mutationDeadlineEpochMs?:number;
   blockedAircraftIds?:ReadonlySet<string>;
   reviewedTodayAircraftIds?:ReadonlySet<string>;
+  /** Demand-insufficient aircraft may be re-reviewed even after a same-day scheduled review. */
+  demandTriggeredAircraftIds?:ReadonlySet<string>;
 }
 
 export interface RouteExecutionEntry {
@@ -109,7 +111,8 @@ export class RouteMutationExecutor {
       settings.maxAgeSeconds<1||settings.maxAgeSeconds>900||
       (settings.mutationDeadlineEpochMs!==undefined&&(!Number.isSafeInteger(settings.mutationDeadlineEpochMs)||settings.mutationDeadlineEpochMs<=0))||
       (settings.blockedAircraftIds!==undefined&&[...settings.blockedAircraftIds].some(id=>!safeId(id)))||
-      (settings.reviewedTodayAircraftIds!==undefined&&[...settings.reviewedTodayAircraftIds].some(id=>!safeId(id))))
+      (settings.reviewedTodayAircraftIds!==undefined&&[...settings.reviewedTodayAircraftIds].some(id=>!safeId(id)))||
+      (settings.demandTriggeredAircraftIds!==undefined&&[...settings.demandTriggeredAircraftIds].some(id=>!safeId(id))))
       throw new Error('ROUTE_EXECUTION_SETTINGS_INVALID');
   }
 
@@ -156,7 +159,10 @@ export class RouteMutationExecutor {
 
       if(report.halted){entry.reason='PREVIOUS_ROUTE_OUTCOME_UNKNOWN';continue;}
       if(this.settings.blockedAircraftIds?.has(decision.aircraftId)){entry.reason='PERSISTED_UNCERTAIN_ROUTE_BLOCK';continue;}
-      if(this.settings.reviewedTodayAircraftIds?.has(decision.aircraftId)){entry.reason='DAILY_ROUTE_REVIEW_ALREADY_COMPLETED';continue;}
+      if(this.settings.reviewedTodayAircraftIds?.has(decision.aircraftId)&&
+        !this.settings.demandTriggeredAircraftIds?.has(decision.aircraftId)){
+        entry.reason='DAILY_ROUTE_REVIEW_ALREADY_COMPLETED';continue;
+      }
       if(this.attemptedAircraft.has(decision.aircraftId)){entry.reason='AIRCRAFT_ALREADY_ATTEMPTED';continue;}
       if(this.attemptedAircraft.size>=this.settings.maxReroutes){entry.reason='ROUTE_EXECUTION_LIMIT';continue;}
       if(!expected||matches.length!==1){entry.reason='FLEET_OR_CANDIDATE_CONTEXT_UNAVAILABLE';continue;}
