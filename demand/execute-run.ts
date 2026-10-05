@@ -32,9 +32,8 @@ export function executionEnvironment(config:DemandConfig,env:NodeJS.ProcessEnv=p
   if(mutationDeadlineEpochMs!==undefined&&(!Number.isSafeInteger(mutationDeadlineEpochMs)||mutationDeadlineEpochMs<=0))throw Error('DEMAND_EXECUTION_DEADLINE_INVALID');
   return {dryRun:config.dryRun,maxDepartures,mutationDeadlineEpochMs};
 }
-export async function runDemandExecution(page:Page,config=readDemandConfig(),env:NodeJS.ProcessEnv=process.env,directory='test-results/demand',airlineBases?:readonly string[]){
-  const settings=executionEnvironment(config,env),configuredOptimization=optimizationConfig(env);
-  const optimization=airlineBases?{...configuredOptimization,airlineBases:[...airlineBases]}:configuredOptimization;
+export async function runDemandExecution(page:Page,config=readDemandConfig(),env:NodeJS.ProcessEnv=process.env,directory='test-results/demand'){
+  const settings=executionEnvironment(config,env),optimization=optimizationConfig(env);
   const blockedDepartureKeys=optimization.returnJournal?await readUnresolvedDepartureKeys(optimization.returnJournal.directory,optimization.returnJournal.scope):new Set<string>();
   await mkdir(directory,{recursive:true});
   // Exclusive marker survives repeated calls in this runner; Actions rejects every real rerun attempt.
@@ -45,17 +44,17 @@ export async function runDemandExecution(page:Page,config=readDemandConfig(),env
     await writeFile(target+'.tmp',JSON.stringify(report,null,2)+'\n');await rename(target+'.tmp',target);
     await writeFile(join(directory,'execution-report.md'),[
       `# Decolagens individuais — ${report.dryRun?'simulacao':'execucao real'}`,'',
-      `Escopo: trechos da rota existente que saem da propria base ou retornam para ela. Avaliadas: ${report.summary.evaluated}; decolagens confirmadas: ${report.summary.departed}; simuladas: ${report.summary.simulated}; retidas: ${report.summary.held}; resultado incerto: ${report.summary.unknown}.`,'',
+      `Escopo: qualquer aeronave pronta em uma rota existente, independentemente do aeroporto/base atual. Avaliadas: ${report.summary.evaluated}; decolagens confirmadas: ${report.summary.departed}; simuladas: ${report.summary.simulated}; retidas: ${report.summary.held}; resultado incerto: ${report.summary.unknown}.`,'',
       '| Aeronave | Trecho | Estado | Motivo |','| --- | --- | --- | --- |',
       ...report.entries.map(e=>`| ${safe(e.registration)} | ${safe(e.from)} → ${safe(e.to)} | ${e.status} | ${safe(e.reason)} |`),'',
       'A cobertura por demanda nao e previsao de ocupacao. Embarque observado consta no JSON apos a decolagem.',
-      'Na propria base, a aeronave pode decolar pela rota atual quando identidade, controle nativo e demanda fresca estiverem validados. Rotas e tarifas continuam sem alteracoes. No workflow principal, abastecimento e documentado separadamente em supply-report.json.',''
+      'Uma aeronave pronta pode decolar pela rota atual em qualquer aeroporto quando identidade, controle nativo, demanda fresca e demais gates estiverem validados. Bases continuam sendo usadas apenas por funcoes que realmente dependem de hub, como route review/reroute. Rotas e tarifas continuam sem alteracoes nesta fase.',''
     ].join('\n'));
   };
   const adaptive=optimization.returnJournal?await loadAdaptiveDemandThresholds(optimization.returnJournal.directory,optimization.returnJournal.scope,config.minPercentage):new Map();
   const fuelHoldingLbsAtRunStart=!settings.dryRun?await verifiedFuelHoldingFromRun(directory):undefined;
   const report=await new IndividualDepartureExecutor(new PlaywrightDeparturePort(page),config,{...settings,
-    aircraftOrigins:optimization.aircraftOrigins,airlineBases:optimization.airlineBases,blockedDepartureKeys,fuelHoldingLbsAtRunStart},save,adaptive).run();
+    blockedDepartureKeys,fuelHoldingLbsAtRunStart},save,adaptive).run();
   console.log('[IndividualDepartures] '+JSON.stringify(report.summary));
   if(!settings.dryRun&&optimization.returnJournal){
     const held=await appendDemandHoldObservations(optimization.returnJournal.directory,optimization.returnJournal.scope,env.GITHUB_RUN_ID||'',report);
