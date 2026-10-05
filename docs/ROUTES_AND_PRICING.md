@@ -30,14 +30,14 @@ Preço já correto resulta em `unchanged`/equivalente e não provoca Save. Resul
 
 ## Route review
 
-A revisão exige uma **origem operacional** confiável para a aeronave.
+A revisão **programada** (retorno/diária) exige uma origem operacional confiável para a aeronave.
 
 A origem pode vir de:
 
 - override explícito por `aircraftId`; ou
 - uma única base da companhia presente na rota atual.
 
-Rotas entre duas bases ou sem base identificável exigem evidência adicional.
+O trigger `demand_insufficient` é diferente: ele pode usar o **aeroporto atual observado** como origem de pesquisa, desde que a aeronave esteja pronta e todo o contexto esteja fresco e verificável. Isso permite reavaliar uma aeronave sem demanda mesmo fora de um hub, sem relaxar os gates econômicos ou de mutação.
 
 ### Gatilhos
 
