@@ -69,6 +69,28 @@ test('candidate reroute requires low-bound dominance over current high-bound and
   expect(cmp.deltaPerHour.conservativeLower).toBeGreaterThan(0);
 });
 
+test('verified demand hold can be replaced by a fully verified positive candidate without inventing current-route profit',()=>{
+  const candidate=routeVariableRoundTripInterval({...quote,to:'CCC',airportId:'3',routeFee:1000},{Y:100,J:20,F:10},{Y:300,J:100,F:50},
+    {Y:1400,J:2800,F:4200},load,costs,co2,market,true,1000,{...reverse,from:'CCC',to:'AAA'},true,now);
+  const cmp=compareRouteVariableCycles(null,candidate,0,null,true);
+  expect(cmp).toMatchObject({
+    status:'candidate_dominates',comparisonReady:true,comparisonBasis:'verified_demand_hold_opportunity',
+    requiredCandidateLowPerHour:0,
+    reason:'CANDIDATE_POSITIVE_LOW_BOUND_BEATS_VERIFIED_DEMAND_HOLD_NO_DEPARTURE'
+  });
+  expect(cmp.firstCycleCandidateLow).toBeGreaterThan(0);
+  expect(cmp.deltaPerHour.conservativeLower).toBeGreaterThan(0);
+});
+
+test('demand hold never authorizes a candidate whose conservative first cycle is not positive',()=>{
+  const candidate=routeVariableRoundTripInterval({...quote,to:'CCC',airportId:'3',routeFee:10_000_000},{Y:100,J:20,F:10},{Y:300,J:100,F:50},
+    {Y:1400,J:2800,F:4200},load,costs,co2,market,true,10_000_000,{...reverse,from:'CCC',to:'AAA'},true,now);
+  expect(compareRouteVariableCycles(null,candidate,0,null,true)).toMatchObject({
+    status:'keep_current',comparisonReady:true,comparisonBasis:'verified_demand_hold_opportunity',
+    reason:'CANDIDATE_DOES_NOT_BEAT_VERIFIED_DEMAND_HOLD_OPPORTUNITY'
+  });
+});
+
 test('overlapping profit intervals keep current route rather than claiming superiority',()=>{
   const current=routeVariableRoundTripInterval(quote,{Y:100,J:20,F:10},{Y:300,J:100,F:50},{Y:1000,J:2000,F:3000},
     load,costs,co2,market,true,0,reverse,true,now);
