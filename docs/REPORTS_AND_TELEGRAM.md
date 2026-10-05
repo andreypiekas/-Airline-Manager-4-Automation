@@ -110,3 +110,33 @@ Abra a conversa e envie uma mensagem ao bot antes de consultar updates.
 ### timeout / network error
 
 Trate como falha de transporte da notificação. O workflow usa notificação como etapa auxiliar e não deve reinterpretar uma operação saudável do jogo como falha apenas por causa do Telegram.
+
+
+## Modo semiautomático
+
+Quando o modo semiautomático está ativo, o Telegram prioriza um resumo curto de decisão, por exemplo:
+
+```text
+🟡 AM4 • MODO SEMIAUTOMÁTICO
+Prontas: 13 | em voo: 7 | frota: 20
+Demanda: 11/13 suficientes
+Fuel: $420/1k | CO₂: $88/1k
+Pricing: 4 ajustes sugeridos
+Rotas: 2 candidata(s) a reroute
+Nenhuma operação foi executada.
+```
+
+A mensagem inclui um botão **Abrir GitHub Actions**. Esse botão apenas abre o workflow; ele não executa o bot.
+
+Para autorizar operações reais, o usuário inicia uma run manual e marca a confirmação do modo semiautomático. A confirmação vale somente para aquela run.
+
+## CAPTCHA e challenges
+
+Se uma verificação interativa, CAPTCHA ou challenge de segurança for detectado:
+
+- a run é interrompida;
+- nenhuma tentativa de solução ou contorno é feita;
+- é criado `challenge-detected.json`;
+- o Telegram informa que a execução foi interrompida por challenge.
+
+A presença de challenge nunca é tratada como erro de UI comum que deva receber retry automático.
