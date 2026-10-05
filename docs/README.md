@@ -6,6 +6,7 @@ A documentação está dividida entre **referência atual** e **histórico**.
 
 | Documento | Conteúdo |
 | --- | --- |
+| [GITHUB_AND_CRON_SETUP.md](GITHUB_AND_CRON_SETUP.md) | Instalação completa no GitHub e cron-job.org |
 | [CONFIGURATION.md](CONFIGURATION.md) | Secrets, inputs, Variables, defaults e limites |
 | [DEMAND_MANAGER.md](DEMAND_MANAGER.md) | Demanda, pools, thresholds e decisão de departure |
 | [PRODUCTION_DEPARTURES.md](PRODUCTION_DEPARTURES.md) | Execução individual de decolagens |
