@@ -27,7 +27,7 @@ export function planPurchase(s:SupplySnapshot,kind:Commodity,c:SupplyConfig):Pur
     !Number.isSafeInteger(s.holding)||
     (kind==='fuel'&&s.holding<0)||
     !Number.isSafeInteger(Math.max(0,s.holding)+s.remainingCapacity))return hold('INVALID_DATA');
-  if(s.pricePer1000>=c.maxPrice[kind])return hold('PRICE_NOT_BELOW_LIMIT');
+  if(s.pricePer1000>c.maxPrice[kind])return hold('PRICE_ABOVE_LIMIT');
   if(kind==='co2'&&s.holding<0)return hold('CO2_DEFICIT_PURCHASE_POLICY_UNVERIFIED');
   if(s.remainingCapacity===0)return hold('STORAGE_FULL');
   const available=Math.max(0,s.balance-c.minCashReserve);
