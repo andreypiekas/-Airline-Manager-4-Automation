@@ -193,6 +193,8 @@ Se uma nova base for comprada no AM4 e seu airport ID existir no catálogo de ae
 
 `AIRLINE_BASES_JSON` permanece apenas como **fallback conservador** quando a lista live não pode ser comprovada.
 
+**Importante:** essa lista de hubs não limita mais as decolagens. O executor de uma rota já existente é base-agnostic e pode processar qualquer aeronave pronta em qualquer aeroporto observado na frota, desde que demanda, identidade, controle nativo, recursos e confirmação estejam válidos. A noção de base própria permanece apenas nas funções que realmente dependem dela, como route review/reroute.
+
 ## Demand Manager
 
 A decisão de decolagem considera, entre outros fatores:
@@ -205,7 +207,7 @@ A decisão de decolagem considera, entre outros fatores:
 - pool conservador de demanda;
 - reservas entre aeronaves;
 - threshold configurado e adaptativo;
-- base operacional;
+- contexto operacional da rota existente;
 - evidência de estoque de combustível;
 - quarentenas persistentes;
 - orçamento de tempo.
