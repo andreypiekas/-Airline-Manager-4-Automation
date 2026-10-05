@@ -155,6 +155,7 @@ test('Telegram production summary is aggregate and emitted on healthy runs',asyn
  const fs=await import('node:fs/promises'),os=await import('node:os'),path=await import('node:path');const dir=await fs.mkdtemp(path.join(os.tmpdir(),'am4-tgs-'));const {runSummaryMessage}=require('../../scripts/telegram-demand.cjs');
  try{
   await fs.writeFile(path.join(dir,'company-dashboard.json'),JSON.stringify({
+   bases:{status:'observed',effective:['XAP','GRU','DTW','TXL'],source:'research_main.php#hubSelect'},
    fleet:{seen:32,ready:3,inflight:29},
    demand:{evaluated:3,sufficient:3,insufficient:0,unavailable:0},
    departures:{evaluated:3,departed:2,held:1,unknown:0},
@@ -165,7 +166,7 @@ test('Telegram production summary is aggregate and emitted on healthy runs',asyn
    uiHealth:{status:'healthy'}
   }));
   const text=runSummaryMessage(dir,'success');
-  expect(text).toContain('AM4 • SUCESSO');expect(text).toContain('Decolagens: 2/3 confirmadas');expect(text).toContain('Pricing: 0 ajustadas | 3 no alvo');expect(text).toContain('Segurança: quarentenas');expect(text).not.toContain('21038003');
+  expect(text).toContain('AM4 • SUCESSO');expect(text).toContain('Bases: XAP, GRU, DTW, TXL • live');expect(text).toContain('Decolagens: 2/3 confirmadas');expect(text).toContain('Pricing: 0 ajustadas | 3 no alvo');expect(text).toContain('Segurança: quarentenas');expect(text).not.toContain('21038003');
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
 test('Telegram important events stays silent on ordinary holds and reports only actionable evidence',async()=>{
