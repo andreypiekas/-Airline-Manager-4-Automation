@@ -1,6 +1,6 @@
 # Operação do bot
 
-Guia rápido para executar o **Airline Manager 4 Automation**. Para todos os parâmetros disponíveis, consulte [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+Guia rápido para executar o **Airline Manager 4 Automation** no seu próprio fork. Para todos os parâmetros disponíveis, consulte [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 Instalação inicial, Secrets, Variables e cron-job.org: [docs/GITHUB_AND_CRON_SETUP.md](docs/GITHUB_AND_CRON_SETUP.md).
 
@@ -51,7 +51,7 @@ TELEGRAM_CHAT_ID
 Um serviço externo pode chamar:
 
 ```text
-POST https://api.github.com/repos/andreypiekas/Airline-Manager-4-Automation/actions/workflows/playwright.yml/dispatches
+POST https://api.github.com/repos/SEU_USUARIO/Airline-Manager-4-Automation/actions/workflows/playwright.yml/dispatches
 ```
 
 Body mínimo:
