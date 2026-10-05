@@ -21,9 +21,11 @@ function importantMessage(dir='test-results/demand',botResult=process.env.BOT_RE
   const pricing=read(dir,'pricing-execution.json');
   const supply=read(dir,'supply-report.json');
   const candidate=read(dir,'candidate-data.json');
+  const modules=read(dir,'operational-modules.json');
   if(botResult&&botResult!=='success')events.push('falha do run: '+botResult);
   if(ui?.status==='UI_CHANGE_DETECTED')events.push('UI_CHANGE_DETECTED em superficie critica');
   if(challenge?.detected===true)events.push('CAPTCHA/challenge detectado; execucao interrompida sem tentativa de contorno');
+  if(modules?.maintenance?.status==='held_safe')events.push('manutencao em HOLD seguro: '+String(modules?.maintenance?.evidence?.reason||'SAFE_HOLD'));
   const unknown=(name,r)=>{
     const n=r?.summary?.unknown;
     if(Number.isSafeInteger(n)&&n>0)events.push(name+' com resultado incerto: '+n);
