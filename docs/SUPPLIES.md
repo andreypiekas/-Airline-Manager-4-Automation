@@ -13,13 +13,13 @@ Catálogos, calendários ou referências externas podem aparecer em relatórios,
 | Variable | Padrão | Regra |
 | --- | ---: | --- |
 | `ENABLE_FUEL` | `true` | Controla Fuel e CO₂ |
-| `MAX_FUEL_PRICE` | `550` | Teto exclusivo por 1.000 lbs |
-| `MAX_CO2_PRICE` | `120` | Teto exclusivo por 1.000 quotas |
+| `MAX_FUEL_PRICE` | `550` | Teto máximo inclusivo por 1.000 lbs |
+| `MAX_CO2_PRICE` | `120` | Teto máximo inclusivo por 1.000 quotas |
 | `MAX_FUEL_PURCHASE_PER_RUN` | `0` | 0 usa espaço disponível |
 | `MAX_CO2_PURCHASE_PER_RUN` | `0` | 0 usa espaço disponível |
 | `MIN_CASH_RESERVE` | `0` | Caixa que deve permanecer disponível |
 
-A igualdade ao teto não compra.
+A igualdade ao teto **compra** se os demais gates também passarem. Ex.: `MAX_CO2_PRICE=120` permite 120; 121 já é bloqueado.
 
 ## Planejamento da quantidade
 
