@@ -2,6 +2,8 @@
 
 Guia rápido para executar o **Airline Manager 4 Automation**. Para todos os parâmetros disponíveis, consulte [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
+Instalação inicial, Secrets, Variables e cron-job.org: [docs/GITHUB_AND_CRON_SETUP.md](docs/GITHUB_AND_CRON_SETUP.md).
+
 ## Workflow principal
 
 ```text
