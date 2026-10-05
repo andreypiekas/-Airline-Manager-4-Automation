@@ -21,7 +21,7 @@ export function readAircraftOrigins(raw: string | undefined): ReadonlyMap<string
 /** Bases confirmed by the owner; this policy is configurable and does not prove a return. */
 export function readAirlineBases(raw: string | undefined): string[] {
   try {
-    const value: unknown = JSON.parse(raw?.trim() || '["XAP","GRU","DTW"]');
+    const value: unknown = JSON.parse(raw?.trim() || '["XAP","GRU","DTW","TXL"]');
     if (!Array.isArray(value) || !value.length || value.some(v => typeof v !== 'string' || !/^[A-Z]{3}$/.test(v)) || new Set(value).size !== value.length) throw new Error();
     return value;
   } catch { throw new Error('AIRLINE_BASES_JSON invalido: informe lista unica de codigos IATA.'); }
