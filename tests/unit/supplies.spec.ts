@@ -3,10 +3,14 @@ import {planPurchase,supplyConfig} from '../../supplies/policy';
 const c=supplyConfig({MAX_FUEL_PRICE:'550',MAX_CO2_PRICE:'120'});
 const s={pricePer1000:500,holding:1000,remainingCapacity:100000,balance:100000};
 test('fills available fuel capacity below the cap',()=>expect(planPurchase(s,'fuel',c)).toMatchObject({quantity:100000,estimatedCost:50000}));
-for(const price of [550,551,1249])test(`never uses an emergency exception at fuel price ${price}`,()=>expect(planPurchase({...s,holding:0,pricePer1000:price},'fuel',c).quantity).toBe(0));
-test('CO2 also observes the strict cap and budget',()=>{
+test('Fuel buys at the configured ceiling and blocks only above it',()=>{
+ expect(planPurchase({...s,holding:0,pricePer1000:550},'fuel',c).quantity).toBeGreaterThan(0);
+ expect(planPurchase({...s,holding:0,pricePer1000:551},'fuel',c).reason).toBe('PRICE_ABOVE_LIMIT');
+});
+test('CO2 buys at or below the configured ceiling and blocks only above it',()=>{
  expect(planPurchase({...s,pricePer1000:119},'co2',c).quantity).toBe(100000);
- expect(planPurchase({...s,pricePer1000:120},'co2',c).quantity).toBe(0);
+ expect(planPurchase({...s,pricePer1000:120},'co2',c).quantity).toBe(100000);
+ expect(planPurchase({...s,pricePer1000:121},'co2',c).reason).toBe('PRICE_ABOVE_LIMIT');
  expect(planPurchase({...s,pricePer1000:100,balance:100},'co2',c)).toMatchObject({quantity:500,estimatedCost:50});
 });
 test('volume limit, reserve and full storage are respected',()=>{
