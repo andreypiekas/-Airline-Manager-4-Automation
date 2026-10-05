@@ -45,7 +45,7 @@ Rotas existentes podem ser processadas em qualquer aeroporto. A lista de hubs n�
 
 A lista de hubs é descoberta dinamicamente pela interface e cruzada com o catálogo de aeroportos. O fallback configurado existe para continuidade quando a leitura live não puder ser comprovada.
 
-Origem operacional é necessária para funções como revisão de retorno e reroute.
+Origem operacional é necessária para revisão programada de retorno/diária. O reroute disparado por demanda insuficiente pode usar o aeroporto atual observado como origem de pesquisa, mantendo os mesmos gates de segurança.
 
 ### Route review
 
