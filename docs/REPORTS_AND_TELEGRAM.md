@@ -66,6 +66,7 @@ Decolagens: 2 confirmadas | retidas 1 | incertas 0
 Pricing: 1 ajustada | 2 no alvo
 Rotas: KEEP 1 | HOLD 1 | reroutes 0
 Suprimentos: Fuel purchased | CO₂ skipped
+Campanhas: Eco ✅ | Reputation ✅ | decolagens ✅
 Segurança: sem resultado incerto | UI healthy
 ```
 
@@ -91,7 +92,8 @@ O dashboard/notifier pode destacar:
 - bloqueio por Fuel;
 - demanda esgotada;
 - manutenção crítica;
-- HOLD prolongado.
+- HOLD prolongado;
+- campanha obrigatória não confirmada antes das decolagens.
 
 ## Diagnóstico do Telegram
 
