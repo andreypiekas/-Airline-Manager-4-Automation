@@ -249,6 +249,20 @@ test('uncertain supply mutation becomes a durable per-commodity no-retry quarant
  expect(()=>validateReturnJournal({...saved,events:[...saved.events,{...saved.events.at(-1),eventId:'sunc_bad',quantity:0}]},'company-test',now)).toThrow('JOURNAL_INVALID');
 });
 
+test('supply quarantine stays unresolved until a strictly newer verified inventory snapshot exists',async()=>{
+ await reviewWithReturnJournal(input(),options(),now);
+ const {appendSupplyObservation,appendUncertainSupplyOperation,readUnresolvedSupplyKinds}=await import('../../optimization/return-journal');
+ const entry:any={kind:'co2',status:'unknown',reason:'OUTCOME_UNKNOWN_NO_RETRY:SUPPLY_PRICE_ROLLOVER',before:{pricePer1000:117},plan:{quantity:1396108},quotedCost:163345};
+ await appendUncertainSupplyOperation(directory,'company-test','133',entry,now);
+ expect([...(await readUnresolvedSupplyKinds(directory,'company-test',now))]).toEqual(['co2']);
+ // Same-timestamp evidence cannot prove that it was observed after the uncertain mutation.
+ await appendSupplyObservation(directory,'company-test','134','co2',{pricePer1000:100,holding:500000,remainingCapacity:500000,balance:1000000},now);
+ expect([...(await readUnresolvedSupplyKinds(directory,'company-test',now))]).toEqual(['co2']);
+ const later=new Date(now.getTime()+60_000);
+ await appendSupplyObservation(directory,'company-test','135','co2',{pricePer1000:99,holding:600000,remainingCapacity:400000,balance:900000},later);
+ expect([...(await readUnresolvedSupplyKinds(directory,'company-test',later))]).toEqual([]);
+});
+
 test('supply quarantine is independent per commodity and cannot be inferred from passive observations',async()=>{
  await reviewWithReturnJournal(input(),options(),now);
  const {appendSupplyObservation,appendUncertainSupplyOperation,readUnresolvedSupplyKinds}=await import('../../optimization/return-journal');
