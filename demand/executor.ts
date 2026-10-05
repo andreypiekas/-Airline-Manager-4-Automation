@@ -20,6 +20,8 @@ export interface ExecutionSettings {
   fuelHoldingLbsAtRunStart?: number;
   /** False means required marketing campaigns were not freshly confirmed in this run. */
   campaignVerified?: boolean;
+  /** Aircraft rerouted in this run remain held until pricing on the new route is freshly verified. */
+  postReroutePricingBlockedAircraftIds?: ReadonlySet<string>;
 }
 export interface ExecutionEntry {
   aircraftId: string; registration: string; routeId: string; from: string; to: string;
@@ -111,6 +113,9 @@ export class IndividualDepartureExecutor {
       report.entries.push(entry);
       if(report.halted){entry.reason='PREVIOUS_OUTCOME_UNKNOWN';continue;}
       if(this.settings.campaignVerified===false){entry.reason='CAMPAIGN_NOT_VERIFIED';continue;}
+      if(this.settings.postReroutePricingBlockedAircraftIds?.has(expected.aircraftId)){
+        entry.reason='REROUTE_PRICING_NOT_VERIFIED';continue;
+      }
       if(this.attemptedAircraft.has(expected.aircraftId)||this.attemptedRoutes.has(expected.routeId)){entry.reason='ALREADY_ATTEMPTED';continue;}
       if(this.settings.blockedDepartureKeys?.has(expected.aircraftId+':'+expected.routeId)){entry.reason='PERSISTED_UNCERTAIN_DEPARTURE_BLOCK';continue;}
       if(this.attemptedAircraft.size>=this.settings.maxDepartures){entry.reason='EXECUTION_LIMIT';continue;}
