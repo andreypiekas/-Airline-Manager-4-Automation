@@ -24,6 +24,8 @@ Resumo técnico da branch `main`.
 | UI Health | Produção |
 | Dashboard executivo | Produção |
 | Telegram | Implementado |
+| Modo semiautomático com confirmação manual | Produção |
+| Bloqueio de CAPTCHA/challenge | Produção, fail-closed |
 | Execução a partir de forks | Suportada |
 | Compra automática de aeronaves | Fora do escopo |
 
@@ -72,7 +74,9 @@ Fuel e CO₂ dependem do preço live. Referências externas não autorizam compr
 - confirmação pós-clique/pós-Save;
 - preço live para supplies;
 - orçamento de tempo;
-- limites de mutações por run.
+- limites de mutações por run;
+- interrupção imediata diante de CAPTCHA/challenge, sem tentativa de contorno;
+- modo semiautomático que exige confirmação manual por run antes de qualquer mutação.
 
 ## Quarentenas
 
