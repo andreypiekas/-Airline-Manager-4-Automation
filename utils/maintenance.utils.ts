@@ -1,5 +1,6 @@
 import { Page } from "@playwright/test";
 import { GeneralUtils } from "./general.utils";
+import { assertNoInteractiveChallenge } from "./challenge-guard";
 
 require('dotenv').config();
 
@@ -32,6 +33,7 @@ export class MaintenanceUtils {
 
     /** Selects an option through the native select element. */
     private async moveAndSelectOption(selectLocator: any, optionValue: string) {
+        await assertNoInteractiveChallenge(this.page, 'maintenance:before-select');
         await selectLocator.waitFor({ state: 'visible', timeout: 10000 });
         await selectLocator.selectOption(optionValue);
     }
