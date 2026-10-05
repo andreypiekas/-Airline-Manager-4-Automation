@@ -7,7 +7,7 @@ const safe=s=>String(s??'').replace(/[|\r\n<>]/g,' ');
 function build(dir='test-results/demand',logPath='test-results/bot.log',journalPath='.am4-state/github/return-journal.json'){
   const demand=read(dir,'demand-report.json'),fleet=read(dir,'fleet-observations.json'),execution=read(dir,'execution-report.json'),
     routeExecution=read(dir,'route-execution.json'),candidateData=read(dir,'candidate-data.json'),supplies=read(dir,'supply-report.json'),pricing=read(dir,'pricing-execution.json'),modules=read(dir,'operational-modules.json'),
-    uiHealth=read(dir,'ui-health.json'),runBudget=read(dir,'run-time-budget.json'),ownedBases=read(dir,'owned-airline-bases.json');
+    uiHealth=read(dir,'ui-health.json'),challenge=read(dir,'challenge-detected.json'),semi=read(dir,'semi-automatic-summary.json'),runBudget=read(dir,'run-time-budget.json'),ownedBases=read(dir,'owned-airline-bases.json');
   const log=(()=>{try{return fs.readFileSync(logPath,'utf8')}catch{return ''}})();
   const journal=readPath(journalPath),events=Array.isArray(journal?.events)?journal.events:[];
   const uncertainDepartureKeys=new Set(events.filter(x=>x?.type==='departure-uncertain').map(x=>x.aircraftId+':'+x.routeId));
@@ -46,7 +46,7 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
     schemaVersion:1,generatedAt:new Date().toISOString(),source:'observed-run-artifacts-only',
     run:{number:process.env.GITHUB_RUN_NUMBER||null,id:process.env.GITHUB_RUN_ID||null,attempt:process.env.GITHUB_RUN_ATTEMPT||null,
       sha:process.env.GITHUB_SHA||null,event:process.env.GITHUB_EVENT_NAME||null,result:process.env.BOT_RESULT||null,
-      stale:process.env.STALE_RUN==='true',mode:execution?(execution.dryRun?'simulation':'production'):null,url:process.env.RUN_URL||null},
+      stale:process.env.STALE_RUN==='true',mode:process.env.AUTOMATION_MODE||(execution?(execution.dryRun?'simulation':'production'):null),url:process.env.RUN_URL||null},
     bases:{status:ownedBases?.status??'not_observed',effective:Array.isArray(ownedBases?.effectiveBases)?ownedBases.effectiveBases:[],source:ownedBases?.source??null,reason:ownedBases?.reason??null},
     demand:{collectionComplete:demand?.collectionComplete??null,evaluated:demand?.summary?.evaluated??null,sufficient:demand?.summary?.sufficient??null,
       insufficient:demand?.summary?.insufficient??null,unavailable:demand?.summary?.unavailable??null,notReady:demand?.summary?.notReady??null},
@@ -63,8 +63,9 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
         unavailable:(candidateData?.routeDecisions||[]).filter(x=>x?.decision==='unavailable').length
       },
       originUnavailable:aircraft.filter(a=>!a.operationalOrigin&&a.originResolution?.source==='unavailable').length},
-    pricing:{evaluated:pricing?.summary?.evaluated??null,adjusted:pricing?.summary?.adjusted??null,
-      unchanged:pricing?.summary?.unchanged??null,unknown:pricing?.summary?.unknown??null,
+    pricing:{evaluated:pricing?.summary?.evaluated??semi?.fleet?.seen??null,adjusted:pricing?.summary?.adjusted??null,
+      suggested:semi?.pricing?.wouldAdjust??null,recommendationOnly:semi?.pricing?.recommendationOnly??null,
+      unchanged:pricing?.summary?.unchanged??semi?.pricing?.unchanged??null,unknown:pricing?.summary?.unknown??null,
       phaseHoldReason:pricing?.phaseHoldReason??null},
     operationalStates:{NORMAL:count('NORMAL'),AGUARDANDO_DEMANDA:count('AGUARDANDO_DEMANDA'),AGUARDANDO_RECURSO:count('AGUARDANDO_RECURSO'),
       PRECISA_REVISAR_ROTA:count('PRECISA_REVISAR_ROTA'),PRECISA_REVISAR_PRECO:count('PRECISA_REVISAR_PRECO'),MANUTENCAO:count('MANUTENCAO'),PRONTA_PARA_DECOLAR:count('PRONTA_PARA_DECOLAR')},
@@ -77,6 +78,7 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
     supplies:supply,
     uiHealth:{status:uiHealth?.status??'not_observed',mutationAuthorized:uiHealth?.mutationAuthorized??null,
       unhealthyChecks:(uiHealth?.checks||[]).filter(x=>x?.status!=='healthy').length},
+    challenge:{detected:challenge?.detected===true,reason:challenge?.reason??null,stage:challenge?.stage??null},
     timeBudget:{blocked:(runBudget?.decisions||[]).filter(x=>x?.allowed===false).length,
       decisions:(runBudget?.decisions||[]).length}
   };
@@ -85,7 +87,7 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
 function markdown(d,states){
  const s=d.operationalStates,attention=states.filter(x=>x.state!=='NORMAL');
  const statusMap={success:'SUCESSO',failure:'FALHA',skipped:'IGNORADA'},runStatus=d.run?.stale?'IGNORADA — SHA OBSOLETO':(statusMap[d.run?.result]||String(d.run?.result||'DESCONHECIDO').toUpperCase());
- const mode=d.run?.mode==='production'?'PRODUÇÃO':d.run?.mode==='simulation'?'SIMULAÇÃO':'N/D';
+ const mode=d.run?.mode==='production'?'PRODUÇÃO':d.run?.mode==='simulation'?'SIMULAÇÃO':d.run?.mode==='semi-automatic'?'SEMIAUTOMÁTICO':'N/D';
  const sha=d.run?.sha?String(d.run.sha).slice(0,8):'n/d';
  const q=d.quarantines,review=d.routes.reviewDecisions||{},fuel=d.supplies.fuel,co2=d.supplies.co2;
  const fmt=n=>Number.isSafeInteger(n)?n.toLocaleString('en-US'):(n??'n/d');
@@ -99,6 +101,7 @@ function markdown(d,states){
  if(review.hold)alerts.push(`${review.hold} revisão(ões) de rota em HOLD`);
  if((d.departures.unknown||0)+(d.routes.unknown||0)+(d.pricing.unknown||0)>0)alerts.push('há resultado operacional incerto — nenhuma repetição automática');
  if(d.uiHealth.status!=='healthy'&&d.uiHealth.status!=='not_observed')alerts.push(`UI health: ${d.uiHealth.status}`);
+ if(d.challenge?.detected)alerts.push('CAPTCHA/challenge detectado — execução interrompida sem tentativa de contorno');
  const lines=['# Airline Manager 4 — relatório operacional','',
   `> Run **#${d.run?.number||'n/d'}** · **${runStatus}** · modo **${mode}** · SHA \`${sha}\` · ${safe(d.generatedAt)}`,
   d.run?.url?`> [Abrir execução no GitHub Actions](${d.run.url})`:'','',
