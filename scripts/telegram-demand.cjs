@@ -26,6 +26,7 @@ function importantMessage(dir='test-results/demand',botResult=process.env.BOT_RE
   if(ui?.status==='UI_CHANGE_DETECTED')events.push('UI_CHANGE_DETECTED em superficie critica');
   if(challenge?.detected===true)events.push('CAPTCHA/challenge detectado; execucao interrompida sem tentativa de contorno');
   if(modules?.maintenance?.status==='held_safe')events.push('manutencao em HOLD seguro: '+String(modules?.maintenance?.evidence?.reason||'SAFE_HOLD'));
+  if(modules?.campaign?.status==='unverified'||modules?.campaign?.evidence?.allRequiredVerified===false)events.push('campanhas exigidas nao confirmadas; decolagens bloqueadas');
   const unknown=(name,r)=>{
     const n=r?.summary?.unknown;
     if(Number.isSafeInteger(n)&&n>0)events.push(name+' com resultado incerto: '+n);
@@ -119,6 +120,12 @@ function runSummaryMessage(dir='test-results/demand',botResult=process.env.BOT_R
     return label+': '+bits.join(' • ');
   };
   if(d?.supplies)lines.push('Suprimentos: '+supply('Fuel',d.supplies.fuel)+' | '+supply('CO₂',d.supplies.co2));
+  if(d?.campaign){
+    const eco=d.campaign.evidence?.ecoFriendly?.verifiedActive===true?'✅':d.campaign.evidence?.ecoFriendly?'❌':'n/d';
+    const rep=d.campaign.evidence?.airlineReputation?.required===false?'n/a':d.campaign.evidence?.airlineReputation?.verifiedActive===true?'✅':d.campaign.evidence?.airlineReputation?'❌':'n/d';
+    const gate=d.campaign.departureAuthorized===true?'✅':d.campaign.departureAuthorized===false?'⛔':'n/d';
+    lines.push('Campanhas: Eco '+eco+' | Reputation '+rep+' | decolagens '+gate);
+  }
   if(d?.quarantines)lines.push('Segurança: quarentenas D'+n(d.quarantines.departure)+' R'+n(d.quarantines.route)+' P'+n(d.quarantines.pricingRoute)+' S'+n(d.quarantines.supplyKinds)+' | UI '+(d.uiHealth?.status||'n/d'));
   if(process.env.RUN_URL)lines.push('Run: '+process.env.RUN_URL);
   return lines.join('\n').slice(0,3500);
