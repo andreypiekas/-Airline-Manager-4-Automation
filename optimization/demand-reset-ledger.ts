@@ -25,12 +25,14 @@ const zero=():Cabins=>({Y:0,J:0,F:0});
 const add=(a:Cabins,b:Cabins):Cabins=>({Y:a.Y+b.Y,J:a.J+b.J,F:a.F+b.F});
 const eq=(a:Cabins,b:Cabins)=>CLASSES.every(k=>a[k]===b[k]);
 const valid=(c:Cabins|null|undefined):c is Cabins=>!!c&&CLASSES.every(k=>Number.isSafeInteger(c[k])&&c[k]>=0);
-const lifetimeHistoryCovered=(a:CollectionResult['aircraft'][number],visibleEntries:number,boundaryMinutes:number)=>{
+const lifetimeHistoryCovered=(a:CollectionResult['aircraft'][number],visibleEntries:number,_boundaryMinutes:number)=>{
   const op=a.operational;
-  if(!op||!Number.isSafeInteger(op.cycles)||op.cycles<0||!Number.isFinite(op.deliveredAgeMinutes)||op.deliveredAgeMinutes!<0||op.deliveredAgeMinutes!>boundaryMinutes)return false;
-  // Live fleet evidence shows an inflight aircraft's current cycle is not yet in
-  // the completed-flight history. Accept exactly that one-cycle gap only when
-  // the current onboard manifest is independently observed; never generalize it.
+  if(!op||!Number.isSafeInteger(op.cycles)||op.cycles<0||!Number.isSafeInteger(visibleEntries)||visibleEntries<0)return false;
+  // A cycle count equal to the complete visible history proves that every
+  // completed lifetime flight is present, regardless of delivery age. For an
+  // inflight aircraft AM4 exposes the current cycle before it appears in the
+  // completed-flight table, so accept exactly one extra cycle only when the
+  // current onboard manifest is independently observed.
   if(a.state==='inflight')return op.cycles===visibleEntries+1&&valid(a.onboard);
   return a.state==='ready'&&op.cycles===visibleEntries;
 };
