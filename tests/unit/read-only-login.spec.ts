@@ -31,6 +31,12 @@ test('missing credentials stop before any navigation',async({page})=>{
   await expect(loginForReadOnlyCollection(page,{},500)).rejects.toThrow('READ_ONLY_CREDENTIALS_MISSING');
   expect(page.url()).toBe('about:blank');
 });
+test('visible captcha stops login explicitly without solving or submitting',async({page})=>{
+  await page.route('**/*',r=>r.fulfill({contentType:'text/html',body:'<div class="g-recaptcha">Verify that you are human</div><button>PLAY FREE NOW</button>'}));
+  await expect(loginForReadOnlyCollection(page,{EMAIL:'synthetic@example.invalid',PASSWORD:'synthetic-test-value'},500))
+    .rejects.toThrow('INTERACTIVE_CHALLENGE_DETECTED_STOP');
+});
+
 test('loading failure exposes only a generic error',async({page})=>{
   await page.route('**/*',r=>r.fulfill({contentType:'text/html',body:'<p>Loading</p>'}));
   await expect(loginForReadOnlyCollection(page,{EMAIL:'synthetic@example.invalid',PASSWORD:'synthetic-test-value'},200)).rejects.toThrow('READ_ONLY_LOGIN_OR_LOADING_FAILED');
