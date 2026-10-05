@@ -119,167 +119,40 @@ O `TELEGRAM_CHAT_ID` é o ID da conversa, não o ID do próprio bot.
 
 Não coloque Secrets em arquivos, commits, Variables públicas ou no cron-job.org.
 
-## 4. Configurar Actions Variables
+## 4. Variables avançadas
 
-No **seu fork**:
+As demais opções de comportamento são configuradas como **Repository Variables** no seu fork:
 
 ```text
 Settings
 → Secrets and variables
 → Actions
 → Variables
-→ New repository variable
 ```
 
-### Estado e departures
+Você não precisa criar todas elas. O workflow já possui defaults para a operação normal.
 
-| Variable | Valor sugerido | Observação |
-| --- | --- | --- |
-| `RETURN_JOURNAL_SCOPE` | `am4-prod` | Namespace do estado persistente |
-| `AIRLINE_BASES_JSON` | configure seus hubs | Fallback para funções que exigem origem operacional |
-| `AIRCRAFT_ORIGINS_JSON` | `[]` | Overrides por aircraftId, se necessários |
-| `ROUTE_REVIEW_TIMEZONE` | seu fuso | Fuso da revisão diária |
-| `EXECUTE_INDIVIDUAL` | `true` | Compatibilidade do resolvedor |
-| `MAX_INDIVIDUAL_DEPARTURES` | `20` | Hard cap atual: 20 |
+A referência completa e centralizada está em:
 
-Exemplo:
+**[VARIABLES.md — todas as Variables, defaults, efeitos e recomendações](VARIABLES.md)**
 
-```text
-AIRLINE_BASES_JSON=["AAA","BBB"]
-AIRCRAFT_ORIGINS_JSON=[]
-ROUTE_REVIEW_TIMEZONE=America/Sao_Paulo
-```
+Use esse arquivo para configurar ou personalizar:
 
-Substitua `AAA` e `BBB` pelos IATAs reais dos hubs da sua companhia.
+- hubs e origem operacional;
+- estado persistente;
+- limites de departures;
+- Demand Manager;
+- route research;
+- route review e reroute;
+- pricing;
+- Fuel e CO₂;
+- manutenção;
+- campanhas;
+- observabilidade.
 
-A descoberta live é a fonte principal quando todos os hubs podem ser resolvidos. `AIRLINE_BASES_JSON` funciona como fallback.
+Depois de alterar uma opção operacional importante, valide primeiro em `simulation`.
 
-A lista de hubs **não limita departures de rotas já existentes**.
-
-### Demanda
-
-| Variable | Valor sugerido |
-| --- | ---: |
-| `MIN_DEMAND_PERCENTAGE` | `80` |
-| `DEMAND_THRESHOLD_MODE` | `aggregate` |
-| `DEMAND_POOL_SCOPE` | `airport-pair` |
-| `DEMAND_MAX_AGE_SECONDS` | `300` |
-| `DEMAND_PROLONGED_HOLD_MINUTES` | `180` |
-
-### Route research, review e reroute
-
-| Variable | Valor sugerido |
-| --- | ---: |
-| `ENABLE_ROUTE_RESEARCH` | `true` |
-| `ROUTE_RESEARCH_MAX_AIRCRAFT` | `3` |
-| `ROUTE_RESEARCH_MAX_SUGGESTIONS` | `5` |
-| `ROUTE_RESERVATION_NEXT_LEGS` | `2` |
-| `ROUTE_RESERVATION_POOL_SCOPE` | `airport-pair` |
-| `ENABLE_ROUTE_OPTIMIZER` | `true` |
-| `ROUTE_MIN_OCCUPANCY_PERCENT` | `80` |
-| `ROUTE_MIN_IMPROVEMENT_PERCENT` | `0` |
-| `ENABLE_ROUTE_EXECUTION` | `true` |
-| `ROUTE_MAX_REROUTES_PER_RUN` | `1` |
-
-`ENABLE_ROUTE_EXECUTION=true` não força uma troca. O executor ainda exige comparação completa, alvo fresco, `comparisonReady` e `mutationAuthorized`.
-
-### Pricing
-
-| Variable | Valor sugerido |
-| --- | ---: |
-| `ENABLE_TICKET_PRICING` | `true` |
-| `ENABLE_TICKET_PRICING_EXECUTION` | `true` |
-| `TICKET_PRICING_MAX_ADJUSTMENTS_PER_RUN` | `5` |
-
-Política PAX:
-
-```text
-Y = Auto × 1.10
-J = Auto × 1.08
-F = Auto × 1.06
-```
-
-### Fuel e CO₂
-
-| Variable | Valor sugerido |
-| --- | ---: |
-| `ENABLE_FUEL` | `true` |
-| `MAX_FUEL_PRICE` | `550` |
-| `MAX_CO2_PRICE` | `120` |
-| `MAX_FUEL_PURCHASE_PER_RUN` | `0` |
-| `MAX_CO2_PURCHASE_PER_RUN` | `0` |
-| `MIN_CASH_RESERVE` | `0` |
-
-Revise os tetos antes de usar produção. Eles são política do bot, não valores oficiais ou garantidos pelo jogo.
-
-### Manutenção e campanhas
-
-| Variable | Valor sugerido |
-| --- | ---: |
-| `ENABLE_MAINTENANCE` | `true` |
-| `REPAIR_WEAR` | `30` |
-| `HOURS_CHECK` | `20` |
-| `ENABLE_CAMPAIGN` | `true` |
-| `INCREASE_AIRLINE_REPUTATION` | `true` |
-| `CAMPAIGN_TYPE` | `1` |
-| `CAMPAIGN_DURATION` | `4` |
-| `ENABLE_DEPART` | `true` |
-
-## 5. Exemplo completo de Variables
-
-Use como referência e adapte antes da produção:
-
-```text
-RETURN_JOURNAL_SCOPE=am4-prod
-AIRLINE_BASES_JSON=["AAA","BBB"]
-AIRCRAFT_ORIGINS_JSON=[]
-ROUTE_REVIEW_TIMEZONE=America/Sao_Paulo
-
-EXECUTE_INDIVIDUAL=true
-MAX_INDIVIDUAL_DEPARTURES=20
-
-MIN_DEMAND_PERCENTAGE=80
-DEMAND_THRESHOLD_MODE=aggregate
-DEMAND_POOL_SCOPE=airport-pair
-DEMAND_MAX_AGE_SECONDS=300
-DEMAND_PROLONGED_HOLD_MINUTES=180
-
-ENABLE_ROUTE_RESEARCH=true
-ROUTE_RESEARCH_MAX_AIRCRAFT=3
-ROUTE_RESEARCH_MAX_SUGGESTIONS=5
-ROUTE_RESERVATION_NEXT_LEGS=2
-ROUTE_RESERVATION_POOL_SCOPE=airport-pair
-
-ENABLE_ROUTE_OPTIMIZER=true
-ROUTE_MIN_OCCUPANCY_PERCENT=80
-ROUTE_MIN_IMPROVEMENT_PERCENT=0
-ENABLE_ROUTE_EXECUTION=true
-ROUTE_MAX_REROUTES_PER_RUN=1
-
-ENABLE_TICKET_PRICING=true
-ENABLE_TICKET_PRICING_EXECUTION=true
-TICKET_PRICING_MAX_ADJUSTMENTS_PER_RUN=5
-
-ENABLE_FUEL=true
-MAX_FUEL_PRICE=550
-MAX_CO2_PRICE=120
-MAX_FUEL_PURCHASE_PER_RUN=0
-MAX_CO2_PURCHASE_PER_RUN=0
-MIN_CASH_RESERVE=0
-
-ENABLE_MAINTENANCE=true
-REPAIR_WEAR=30
-HOURS_CHECK=20
-
-ENABLE_CAMPAIGN=true
-INCREASE_AIRLINE_REPUTATION=true
-CAMPAIGN_TYPE=1
-CAMPAIGN_DURATION=4
-
-ENABLE_DEPART=true
-```
-
-## 6. Primeira execução: Simulation
+## 5. Primeira execução: Simulation
 
 No seu fork:
 
@@ -307,7 +180,7 @@ Confira:
 - artifacts;
 - ausência de erro de configuração.
 
-## 7. Primeira execução de produção
+## 6. Primeira execução de produção
 
 Somente depois da simulation:
 
@@ -326,7 +199,7 @@ Revise o Summary depois da run.
 
 # cron-job.org
 
-## 8. Criar um Fine-grained PAT
+## 7. Criar um Fine-grained PAT
 
 O cron precisa acionar o workflow **do seu fork**.
 
@@ -354,7 +227,7 @@ Defina uma expiração adequada e guarde o token em local seguro.
 
 O endpoint de `workflow_dispatch` exige permissão de escrita em Actions.
 
-## 9. Criar o cron job
+## 8. Criar o cron job
 
 No cron-job.org:
 
@@ -413,7 +286,7 @@ O workflow possui controle de concorrência para não operar duas runs simultane
 
 Não ative atraso aleatório no cron sem uma necessidade específica.
 
-## 10. Resposta esperada
+## 9. Resposta esperada
 
 Quando o GitHub aceita o dispatch:
 
@@ -430,7 +303,7 @@ Actions
 → Automacao Airline Manager 4
 ```
 
-## 11. Teste com curl
+## 10. Teste com curl
 
 ```bash
 curl --request POST \
@@ -444,7 +317,7 @@ curl --request POST \
 
 Resposta esperada: `204`.
 
-## 12. O que fica em cada serviço
+## 11. O que fica em cada serviço
 
 ### GitHub Secrets
 
@@ -471,7 +344,7 @@ Somente:
 
 Nunca coloque credenciais do AM4 no cron-job.org.
 
-## 13. Troubleshooting
+## 12. Troubleshooting
 
 ### O fork não executa workflows
 
@@ -506,15 +379,14 @@ Confira se a branch `main` existe e se o body contém um `ref` válido.
 
 O cron funcionou. Abra a run no GitHub. O bot pode ter terminado em HOLD, não haver aeronaves prontas ou uma fase de segurança ter bloqueado a mutação.
 
-## 14. Checklist
+## 13. Checklist
 
 - [ ] fiz fork de `andreypiekas/Airline-Manager-4-Automation`
 - [ ] copiei somente a branch padrão durante o fork
 - [ ] estou configurando **meu fork**, não o original
 - [ ] habilitei GitHub Actions no fork
 - [ ] criei `EMAIL` e `PASSWORD` como Secrets
-- [ ] configurei `AIRLINE_BASES_JSON` com meus hubs
-- [ ] revisei as demais Variables
+- [ ] consultei `docs/VARIABLES.md` e personalizei somente o que preciso
 - [ ] configurei Telegram, se desejado
 - [ ] executei `simulation`
 - [ ] revisei Summary e artifacts
