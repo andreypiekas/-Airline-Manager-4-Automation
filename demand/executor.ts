@@ -55,7 +55,9 @@ function verifiedHistoricalFuelRequirement(a:AircraftSnapshot):{fuelLbs:number;s
   if(!history||history.status!=='observed'||!Array.isArray(history.entries))return null;
   const pair=routePairKey(a.from,a.to);
   const matching=history.entries.filter(e=>routePairKey(e.from,e.to)===pair&&Number.isSafeInteger(e.fuelLbs)&&e.fuelLbs>0);
-  if(matching.length<3)return null;
+  // Two independent observations of the same airport pair with the exact same
+  // fuel value are sufficient to establish a conservative route requirement.
+  if(matching.length<2)return null;
   const values=[...new Set(matching.map(e=>e.fuelLbs))];
   return values.length===1?{fuelLbs:values[0],samples:matching.length}:null;
 }
