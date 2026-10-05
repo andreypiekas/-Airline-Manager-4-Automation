@@ -75,6 +75,9 @@ export async function runRouteExecution(
   const blockedAircraftIds=optimization.returnJournal
     ? await readUnresolvedRouteAircraftIds(optimization.returnJournal.directory,optimization.returnJournal.scope)
     : new Set<string>();
+  const demandTriggeredAircraftIds=new Set(
+    context.report.decisions.filter(d=>d.decision==='hold_insufficient').map(d=>d.aircraftId)
+  );
   const reviewedTodayAircraftIds=new Set<string>();
   if(optimization.returnJournal){
     const reviewGateNow=new Date();
@@ -84,7 +87,8 @@ export async function runRouteExecution(
     );
     for(const aircraft of context.collection.aircraft){
       const origin=resolveAircraftOrigin(aircraft,context.collection,optimization.aircraftOrigins,optimization.airlineBases).origin;
-      if(origin&&!dailyReviewDue(aircraft.aircraftId,origin,journal,reviewGateNow,optimization.reviewTimeZone))
+      if(origin&&!demandTriggeredAircraftIds.has(aircraft.aircraftId)&&
+        !dailyReviewDue(aircraft.aircraftId,origin,journal,reviewGateNow,optimization.reviewTimeZone))
         reviewedTodayAircraftIds.add(aircraft.aircraftId);
     }
   }
@@ -110,7 +114,7 @@ export async function runRouteExecution(
 
   const executor=new RouteMutationExecutor(
     new PlaywrightRouteExecutionPort(page),
-    {...settings,blockedAircraftIds,reviewedTodayAircraftIds},
+    {...settings,blockedAircraftIds,reviewedTodayAircraftIds,demandTriggeredAircraftIds},
     save
   );
   const report=await executor.run(
