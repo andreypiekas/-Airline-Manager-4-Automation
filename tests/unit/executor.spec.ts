@@ -83,7 +83,7 @@ test('two identical verified fuel observations are enough for a conservative rou
   {relativeTime:'6 hours ago',from:'TXL',to:'GRU',registrationLabel:'TEST',co2Quotas:100,onboard:{Y:80,J:0,F:0},fuelLbs:126220,revenue:1000},
   {relativeTime:'12 hours ago',from:'GRU',to:'TXL',registrationLabel:'TEST',co2Quotas:100,onboard:{Y:80,J:0,F:0},fuelLbs:126220,revenue:1000}
  ]};
- const a=snapshot({from:'GRU',to:'TXL',routeLabel:'DTW - TXL',flightHistory:history});
+ const a=snapshot({from:'GRU',to:'TXL',routeLabel:'GRU - TXL',flightHistory:history});
  const s=setup({initial:collection([a]),prepared:a,fuelHoldingLbsAtRunStart:500000});
  const r=await s.executor.run();
  expect(s.clicks()).toBe(1);
