@@ -132,9 +132,17 @@ export async function runRouteExecution(
         const o=resolveAircraftOrigin(a,context.collection,optimization.aircraftOrigins,optimization.airlineBases).origin;
         if(o)origins.set(a.aircraftId,o);
       }
-      const added=await appendVerifiedKeepRouteDecisions(optimization.returnJournal.directory,optimization.returnJournal.scope,context.candidateData.routeDecisions,context.candidateData.candidates,context.collection.aircraft,origins,optimization.reviewTimeZone);
+      const added=await appendVerifiedKeepRouteDecisions(
+        optimization.returnJournal.directory,optimization.returnJournal.scope,context.candidateData.routeDecisions,
+        context.candidateData.candidates,context.collection.aircraft,origins,optimization.reviewTimeZone,new Date(),
+        demandTriggeredAircraftIds,env.GITHUB_RUN_ID||''
+      );
       if(added)console.log('[History] Revisoes KEEP verificadas acrescentadas: '+added);
-      const reroutes=await appendConfirmedRerouteReviews(optimization.returnJournal.directory,optimization.returnJournal.scope,context.candidateData.routeDecisions,context.candidateData.candidates,context.collection.aircraft,origins,report,optimization.reviewTimeZone);
+      const reroutes=await appendConfirmedRerouteReviews(
+        optimization.returnJournal.directory,optimization.returnJournal.scope,context.candidateData.routeDecisions,
+        context.candidateData.candidates,context.collection.aircraft,origins,report,optimization.reviewTimeZone,new Date(),
+        demandTriggeredAircraftIds,env.GITHUB_RUN_ID||''
+      );
       if(reroutes)console.log('[History] Revisoes REROUTE confirmadas acrescentadas: '+reroutes);
     }catch{
       if(report.halted)throw new Error('ROUTE_UNKNOWN_QUARANTINE_PERSIST_FAILED_NO_RETRY');
