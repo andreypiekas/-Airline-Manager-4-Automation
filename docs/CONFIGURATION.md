@@ -32,7 +32,7 @@ Entradas numéricas equivalentes a inteiros podem chegar pelo GitHub como `0.0`,
 
 | Variable | Valor recomendado | Descrição |
 | --- | --- | --- |
-| `RETURN_JOURNAL_SCOPE` | `am4-prod` | Namespace do estado persistente |
+| `RETURN_JOURNAL_SCOPE` | `am4-prod` | Namespace do estado persistente; o fork inicializa seu próprio journal |
 | `MAX_INDIVIDUAL_DEPARTURES` | `20` | Máximo por run; hard cap 20 |
 | `AIRLINE_BASES_JSON` | definir explicitamente | Fallback de hubs para funções que exigem origem operacional |
 | `AIRCRAFT_ORIGINS_JSON` | `[]` | Overrides explícitos por `aircraftId` |
