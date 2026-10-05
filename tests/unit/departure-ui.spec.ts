@@ -37,13 +37,13 @@ async function ui(page:import('@playwright/test').Page,response='success'){
 }
 test('complete Playwright path performs one intercepted departure and verifies fresh native inflight state',async({page})=>{
  const count=await ui(page);const states:string[]=[];
- const r=await new IndividualDepartureExecutor(new PlaywrightDeparturePort(page,1500),readDemandConfig({}),{dryRun:false,maxDepartures:1,aircraftOrigins:new Map(),airlineBases:['GRU']},async r=>{states.push(r.entries[0]?.status||'start');}).run();
+ const r=await new IndividualDepartureExecutor(new PlaywrightDeparturePort(page,1500),readDemandConfig({}),{dryRun:false,maxDepartures:1},async r=>{states.push(r.entries[0]?.status||'start');}).run();
  expect(count()).toBe(1);expect(r.summary.departed).toBe(1);expect(r.entries[0].actualOnboard?.Y).toBe(88);expect(states).toContain('attempting');
 });
 test('UI response failure stops after one intercepted request with unknown result',async({page})=>{
- const count=await ui(page,'failure');const r=await new IndividualDepartureExecutor(new PlaywrightDeparturePort(page,1500),readDemandConfig({}),{dryRun:false,maxDepartures:1,aircraftOrigins:new Map(),airlineBases:['GRU']},async()=>{}).run();
+ const count=await ui(page,'failure');const r=await new IndividualDepartureExecutor(new PlaywrightDeparturePort(page,1500),readDemandConfig({}),{dryRun:false,maxDepartures:1},async()=>{}).run();
  expect(count()).toBe(1);expect(r.halted).toBe(true);expect(r.summary.unknown).toBe(1);
 });
 test('Playwright simulation traverses identical UI and never requests the departure endpoint',async({page})=>{
- const count=await ui(page);const r=await new IndividualDepartureExecutor(new PlaywrightDeparturePort(page,1500),readDemandConfig({}),{dryRun:true,maxDepartures:1,aircraftOrigins:new Map(),airlineBases:['GRU']},async()=>{}).run();expect(r.summary.simulated).toBe(1);expect(count()).toBe(0);
+ const count=await ui(page);const r=await new IndividualDepartureExecutor(new PlaywrightDeparturePort(page,1500),readDemandConfig({}),{dryRun:true,maxDepartures:1},async()=>{}).run();expect(r.summary.simulated).toBe(1);expect(count()).toBe(0);
 });
