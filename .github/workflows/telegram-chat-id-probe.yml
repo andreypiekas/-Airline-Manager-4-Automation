@@ -49,9 +49,26 @@ jobs:
           if not chats:
               print("NO_CHAT_UPDATES_FOUND")
               sys.exit(5)
+          private=[(cid,meta) for cid,meta in chats.items() if meta.get("type")=="private"]
           for cid,meta in chats.items():
               safe_name=meta["name"].replace("\n"," ").replace("\r"," ")[:80]
               print(f"CHAT_ID={cid} TYPE={meta['type']} NAME={safe_name}")
+          if len(private)!=1:
+              print(f"EXPECTED_ONE_PRIVATE_CHAT_FOUND_{len(private)}")
+              sys.exit(6)
+          cid,_=private[0]
+          body=json.dumps({"chat_id":cid,"text":"AM4: Telegram conectado com sucesso. As proximas execucoes poderao enviar o resumo automatico."}).encode()
+          req=urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage",data=body,headers={"Content-Type":"application/json"},method="POST")
+          try:
+              with urllib.request.urlopen(req, timeout=20) as r:
+                  sent=json.load(r)
+          except Exception:
+              print("TELEGRAM_TEST_SEND_FAILED")
+              sys.exit(7)
+          if not sent.get("ok"):
+              print("TELEGRAM_TEST_SEND_NOT_OK")
+              sys.exit(8)
+          print("TELEGRAM_TEST_SEND_OK")
           PY
 
 # probe rerun after user message
