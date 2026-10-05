@@ -181,7 +181,7 @@ export async function researchFleetCandidates(page: Page, collection: Collection
 export async function writeRouteResearchReport(report: Awaited<ReturnType<typeof researchFleetCandidates>>, directory='test-results/demand') {
   await mkdir(directory,{recursive:true});
   await writeFile(join(directory,'route-research.json'),JSON.stringify(report,null,2)+'\n');
-  const rows = report.aircraft.map(a => `- ${a.aircraftId}: ${a.status}; origem ${a.origin ?? 'indisponivel'}; orcamentos mantidos ${a.result?.quotes.length ?? 0}; sugestoes examinadas ${a.result?.scanned ?? 0}; descartadas por teto de ocupacao ${a.result?.screenedOut.length ?? 0}.`);
+  const rows = report.aircraft.map(a => `- ${a.aircraftId}: ${a.status}; gatilho ${a.trigger}; origem de pesquisa ${a.researchOrigin ?? 'indisponivel'}; ocupacao que disparou pesquisa ${a.demandOccupancyPercentage===null?'n/d':a.demandOccupancyPercentage.toFixed(2)+'%'}; candidatos mantidos ${a.result?.quotes.length ?? 0}; sugestoes examinadas ${a.result?.scanned ?? 0}; descartadas por teto de ocupacao ${a.result?.screenedOut.length ?? 0}.`);
   const probeRows=report.diagnosticProbes.length?report.diagnosticProbes:(report.diagnosticProbe?[report.diagnosticProbe]:[]);
   const diagnostic=probeRows.length?[
     '',
