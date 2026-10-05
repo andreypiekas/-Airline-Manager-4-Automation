@@ -39,7 +39,19 @@ Fork
 → Create a new fork
 ```
 
-Mantenha a branch padrão `main`.
+Na tela de criação:
+
+- mantenha a branch padrão `main`;
+- **selecione `Copy the DEFAULT branch only`**.
+
+O fork não deve copiar a branch de runtime do upstream. Na primeira execução, o workflow cria automaticamente no seu fork:
+
+```text
+am4-runtime-state
+return-journal-<scope>.json
+```
+
+Esse journal começa vazio e passa a pertencer somente à sua instalação.
 
 O resultado será semelhante a:
 
@@ -74,6 +86,8 @@ Actions
 Depois confirme que os workflows aparecem na aba **Actions**.
 
 > Secrets do repositório original não são transferidos para o seu fork. Você precisa configurar os seus próprios Secrets e Variables.
+
+> Se você já criou um fork copiando todas as branches, remova a branch `am4-runtime-state` do **seu fork antes da primeira execução**. O workflow recriará um estado vazio automaticamente.
 
 ## 3. Configurar Actions Secrets
 
@@ -495,6 +509,7 @@ O cron funcionou. Abra a run no GitHub. O bot pode ter terminado em HOLD, não h
 ## 14. Checklist
 
 - [ ] fiz fork de `andreypiekas/Airline-Manager-4-Automation`
+- [ ] copiei somente a branch padrão durante o fork
 - [ ] estou configurando **meu fork**, não o original
 - [ ] habilitei GitHub Actions no fork
 - [ ] criei `EMAIL` e `PASSWORD` como Secrets
