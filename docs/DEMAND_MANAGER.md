@@ -113,11 +113,11 @@ Booleanos aceitam apenas `true`/`false`; erros de digitação são rejeitados. C
 
 - `test-results/demand/demand-report.json`: schema, instante de leitura, estado, IDs, trechos, capacidade, restante, total diário, pool, reservas, necessidade mínima, percentual e justificativa.
 - `test-results/demand/demand-report.md`: tabela legível e resumo.
-- Artefato `demand-report` e resumo do GitHub Actions; retenção 7 dias. Relatórios contêm dados operacionais da frota: considere a visibilidade do repositório antes de compartilhar artefatos.
-- Telegram opcional usa os secrets existentes e envia somente contagens de problemas. Não inclui saldo, nomes de aeronaves, URLs autenticadas ou logs. Não foi enviado Telegram nesta entrega.
+- O artifact `demand-report` mantém os relatórios técnicos por 7 dias; o `GITHUB_STEP_SUMMARY` mostra somente o painel executivo consolidado. Relatórios contêm dados operacionais da frota: considere a visibilidade do repositório antes de compartilhar artifacts.
+- Telegram usa os Secrets existentes e envia um resumo agregado derivado do mesmo dashboard do GitHub. Não inclui saldo, aircraftId, matrícula, credenciais, cookies ou HTML. O caminho real de entrega foi validado em produção em 05/10/2026.
 - Os relatórios gerados pelos testes são apagados antes da coleta autenticada para não confundir dados simulados com dados reais.
 - `npm ci`, `npm run typecheck`, `npx playwright install chromium`, `npm test`: validação local com fixtures, sem credenciais ou chamadas ao jogo.
-- `npm run bot`: **não executar para testar cálculos**; acessa a conta. No padrão, faz somente leitura/simulação. Configurar credenciais via ambiente apenas no executor autorizado.
+- `npm run bot`: **não executar para testar cálculos**; pode acessar a conta e deve ser usado somente em ambiente operacional explicitamente configurado. Para cálculos, use a suíte offline.
 - `validate.yml` executa somente compilação e fixtures em PR/push. Não recebe secrets do jogo.
 - `playwright.yml` continua exclusivamente `workflow_dispatch`, sem schedule/push/PR para operações. O corpo usado pelo cron-job.org permanece compatível.
 

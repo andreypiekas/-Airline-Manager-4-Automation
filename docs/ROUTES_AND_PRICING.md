@@ -250,7 +250,7 @@ O mecanismo de calendario, comparacao e deduplicacao esta implementado e testado
 
 ## Atualização consolidada — 01/10/2026
 
-A persistência real com eventos sintéticos foi validada em dois runners do GitHub Actions; a branch am4-runtime-state já existe. O scope operacional ainda não foi inicializado e ENABLE_RETURN_JOURNAL permanece desativado. As afirmações anteriores de que não existia branch ou teste de transporte real descrevem etapas anteriores. Consulte [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) para o estado atual, evidências e pendências da pesquisa de candidatas.
+A branch `am4-runtime-state` está ativa e o journal operacional é restaurado/salvo pelo workflow de produção. Quarentenas e eventos são preservados entre runners. As afirmações anteriores de que o transporte ou o scope operacional ainda estavam desativados descrevem etapas históricas. Consulte [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) para o estado atual.
 
 ### Consulta opcional integrada à simulação — 01/10/2026
 
