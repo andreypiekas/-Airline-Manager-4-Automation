@@ -38,7 +38,7 @@ export async function runDemandSimulationDetailed(page: Page, config: DemandConf
   const liveStitches=optimization.returnJournal
     ? await readLiveAnchoredFlightHistoryStitchDiagnostics(optimization.returnJournal.directory,optimization.returnJournal.scope,collection.aircraft)
     : [];
-  const candidateData=await collectCandidateData(page,collection,researchReport,optimization.minOccupancy,liveStitches);
+  const candidateData=await collectCandidateData(page,collection,researchReport,optimization.minOccupancy,liveStitches,report);
   await writeCandidateDataReport(candidateData);
   if(optimization.returnJournal&&/^[1-9]\d*$/.test(process.env.GITHUB_RUN_ID||'')){
     const anchors=await appendFlightHistoryAnchors(optimization.returnJournal.directory,optimization.returnJournal.scope,process.env.GITHUB_RUN_ID!,collection,candidateData.flightHistoryCoverage);
