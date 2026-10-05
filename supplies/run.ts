@@ -25,7 +25,7 @@ export async function runSupplies(page:Page,dryRun:boolean,env:NodeJS.ProcessEnv
  const save=async()=>{
   const file=join(directory,'supply-report.json');await writeFile(file+'.tmp',JSON.stringify(report,null,2)+'\n');await rename(file+'.tmp',file);
   await writeFile(join(directory,'supply-report.md'),['# Combustivel e CO2','',`Simulacao: ${dryRun}; habilitado: ${config.enabled}.`,'',
-   '| Recurso | Preco / 1.000 | Teto efetivo exclusivo | Politica | Quantidade | Resultado |','| --- | --- | --- | --- | --- | --- |',
+   '| Recurso | Preco / 1.000 | Teto efetivo inclusivo | Politica | Quantidade | Resultado |','| --- | --- | --- | --- | --- | --- |',
    ...report.entries.map(e=>`| ${e.kind} | ${e.before?.pricePer1000??'—'} | ${effectiveConfig.maxPrice[e.kind as Commodity]} | ${adaptive[e.kind as Commodity].source} (${adaptive[e.kind as Commodity].samples} amostras) | ${e.plan?.quantity??0} | ${e.status}: ${e.reason} |`),'',
    `Calendario de referencia: fuel=${forecast.fuel.status}, CO2=${forecast.co2.status}. O calendario nunca autoriza compra; exige preco live.`,''].join('\n'));
  };
