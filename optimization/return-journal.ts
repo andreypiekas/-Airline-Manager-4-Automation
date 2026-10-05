@@ -9,7 +9,7 @@ import type { AircraftSnapshot, CollectionResult } from '../demand/types';
 type CompletedDecision = 'would_reroute' | 'keep_route' | 'hold';
 interface RoutePerformanceEvidence { routeId:string; viable:boolean; netProfit:number|null; netProfitPerHour:number|null; occupancyPercentages:number[]; grossRevenueCeilingPerHour?:number }
 interface Entry { aircraftId: string; origin: string; flightId: string; reviewedAt: string; decision: CompletedDecision;
-  reviewEvidence?: { trigger:'return'|'daily'; reviewedRouteId:string; selectedRouteId:string|null; result:CompletedDecision; routePerformance:RoutePerformanceEvidence[] } }
+  reviewEvidence?: { trigger:'return'|'daily'|'demand'; reviewedRouteId:string; selectedRouteId:string|null; result:CompletedDecision; routePerformance:RoutePerformanceEvidence[] } }
 export interface FlightHistoryAnchorEvent { eventId:string; type:'flight-history-anchor'; aircraftId:string; registration:string; observedAt:string; cycles:number; rows:Array<{relativeTime:string;from:string;to:string;co2Quotas:number;onboard:{Y:number;J:number;F:number};fuelLbs:number;revenue:number}> }
 export interface UncertainDepartureEvent { eventId:string; type:'departure-uncertain'; aircraftId:string; registration:string; routeId:string; from:string; to:string; observedAt:string; result:'outcome_unknown'; reason:string; sourceRunId:string }
 export interface UncertainSupplyEvent { eventId:string; type:'supply-uncertain'; kind:'fuel'|'co2'; observedAt:string; result:'outcome_unknown'; reason:string; sourceRunId:string; pricePer1000:number; quantity:number; quotedCost:number }
@@ -48,7 +48,7 @@ const validPerformance=(v:unknown):v is RoutePerformanceEvidence=>{
 };
 const validReviewEvidence=(v:unknown,decision:CompletedDecision)=>{
   if(!v||typeof v!=='object')return false;const x=v as NonNullable<Entry['reviewEvidence']>;
-  return Object.keys(x).sort().join(',')==='result,reviewedRouteId,routePerformance,selectedRouteId,trigger'&&['return','daily'].includes(x.trigger)&&
+  return Object.keys(x).sort().join(',')==='result,reviewedRouteId,routePerformance,selectedRouteId,trigger'&&['return','daily','demand'].includes(x.trigger)&&
     validId(x.reviewedRouteId)&&(x.selectedRouteId===null||validId(x.selectedRouteId))&&x.result===decision&&Array.isArray(x.routePerformance)&&
     x.routePerformance.length>0&&x.routePerformance.length<=100&&x.routePerformance.every(validPerformance);
 };
@@ -284,7 +284,7 @@ export async function appendFlightHistoryAnchors(directory:string,scope:string,r
  if(!added)return 0;if(list.length>100000)throw new Error('JOURNAL_FULL: nao descartar historico automaticamente.');data.events=list;const temporary=join(root,`return-journal.${randomUUID()}.tmp`);try{const file=await open(temporary,'wx',0o600);try{await file.writeFile(JSON.stringify(data,null,2)+'\n');await file.sync();}finally{await file.close();}await rename(temporary,filename);}catch{throw new Error('JOURNAL_SAVE_FAILED: ancora de historico nao persistida.');}finally{await unlink(temporary).catch(()=>undefined);}return added;},join(root,'.return-journal.lock'));
 }
 export async function appendUiHealthObservation(directory:string,scope:string,observedAt:string,surfaces:string[]):Promise<number>{const now=new Date(observedAt);if(!validId(scope)||!Number.isFinite(now.getTime()))throw new Error('JOURNAL_CONFIG_INVALID');const root=resolve(directory);return withRunLock(async()=>{const filename=join(root,'return-journal.json');const data=validateReturnJournal(JSON.parse(await readFile(filename,'utf8')),scope,now);const list=data.uiHealthObservations?[...data.uiHealthObservations]:[];const event:UiHealthObservation={eventId:'ui_'+observedAt.replace(/\D/g,'').slice(0,14),type:'ui-health',observedAt,status:'healthy',surfaces:[...surfaces]};if(!validUiHealthObservation(event,now))throw new Error('JOURNAL_UI_HEALTH_INVALID');if(list.some(x=>x.eventId===event.eventId))return 0;list.push(event);data.uiHealthObservations=list;const temporary=join(root,`return-journal.${randomUUID()}.tmp`);try{const file=await open(temporary,'wx',0o600);try{await file.writeFile(JSON.stringify(data,null,2)+'\n');await file.sync();}finally{await file.close();}await rename(temporary,filename);}finally{await unlink(temporary).catch(()=>undefined);}return 1;},join(root,'.return-journal.lock'));}
-export async function appendConfirmedRerouteReviews(directory:string,scope:string,decisions:any[],candidates:any[],fleet:any[],origins:ReadonlyMap<string,string>,execution:any,reviewTimeZone:string,now=new Date()):Promise<number>{
+export async function appendConfirmedRerouteReviews(directory:string,scope:string,decisions:any[],candidates:any[],fleet:any[],origins:ReadonlyMap<string,string>,execution:any,reviewTimeZone:string,now=new Date(),demandTriggeredAircraftIds:ReadonlySet<string>=new Set(),sourceRunId=''):Promise<number>{
  if(!validId(scope)||!Number.isFinite(now.getTime())||!Array.isArray(decisions)||!Array.isArray(candidates)||!Array.isArray(fleet)||!execution||execution.halted===true)throw new Error('JOURNAL_CONFIG_INVALID');
  const root=resolve(directory);await mkdir(root,{recursive:true});
  return withRunLock(async()=>{
@@ -296,10 +296,13 @@ export async function appendConfirmedRerouteReviews(directory:string,scope:strin
    if(d?.decision!=='would_reroute'||!d?.selected||!Number.isSafeInteger(d?.compared)||d.compared<1||
       !Number.isSafeInteger(d?.dominating)||d.dominating<1)continue;
    const matches=fleet.filter(a=>a?.aircraftId===d.aircraftId);if(matches.length!==1)continue;
-   const a=matches[0],origin=origins.get(a.aircraftId);
-   if(!origin||a.state!=='ready'||a.issue||a.from!==origin||!validId(a.routeId))continue;
-   const review=routeReviewTrigger(a.aircraftId,origin,data,now,reviewTimeZone);
-   if(!review.due||review.trigger==='none'||!review.flightId)continue;
+   const a=matches[0],demandTriggered=demandTriggeredAircraftIds.has(a.aircraftId);
+   const origin=demandTriggered?a.from:origins.get(a.aircraftId);
+   if(!origin||!validOrigin(origin)||a.state!=='ready'||a.issue||(!demandTriggered&&a.from!==origin)||!validId(a.routeId))continue;
+   const review=demandTriggered
+     ? (validId(sourceRunId)?{due:true,trigger:'demand' as const,flightId:`demand_${sourceRunId}_${a.aircraftId}_${a.routeId}`}:null)
+     : routeReviewTrigger(a.aircraftId,origin,data,now,reviewTimeZone);
+   if(!review||!review.due||review.trigger==='none'||!review.flightId)continue;
 
    const done=(execution.entries||[]).filter((e:any)=>e?.aircraftId===a.aircraftId&&e?.status==='rerouted'&&
      e?.reason==='NATIVE_REROUTE_AND_FRESH_ROUTE_CONFIRMED'&&e.previousRouteId===a.routeId&&e.previousFrom===a.from&&
@@ -339,7 +342,7 @@ export async function appendConfirmedRerouteReviews(directory:string,scope:strin
   return added;
  },join(root,'.return-journal.lock'));
 }
-export async function appendVerifiedKeepRouteDecisions(directory:string,scope:string,decisions:any[],candidates:any[],fleet:any[],origins:ReadonlyMap<string,string>,reviewTimeZone:string,now=new Date()):Promise<number>{
+export async function appendVerifiedKeepRouteDecisions(directory:string,scope:string,decisions:any[],candidates:any[],fleet:any[],origins:ReadonlyMap<string,string>,reviewTimeZone:string,now=new Date(),demandTriggeredAircraftIds:ReadonlySet<string>=new Set(),sourceRunId=''):Promise<number>{
  if(!validId(scope)||!Number.isFinite(now.getTime())||!Array.isArray(decisions)||!Array.isArray(candidates)||!Array.isArray(fleet))throw new Error('JOURNAL_CONFIG_INVALID');
  const root=resolve(directory);await mkdir(root,{recursive:true});return withRunLock(async()=>{
   const filename=join(root,'return-journal.json');let data:Journal;
@@ -350,10 +353,13 @@ export async function appendVerifiedKeepRouteDecisions(directory:string,scope:st
    if(d?.decision!=='keep_route'||d?.selected!==null||!Number.isSafeInteger(d?.compared)||d.compared<1||
       d.reason!=='NO_INSPECTED_CANDIDATE_PROVES_CONSERVATIVE_DOMINANCE')continue;
    const matches=fleet.filter(a=>a?.aircraftId===d.aircraftId);if(matches.length!==1)continue;
-   const a=matches[0],origin=origins.get(a.aircraftId);
-   if(!origin||a.state!=='ready'||a.issue||a.from!==origin||!validId(a.routeId))continue;
-   const review=routeReviewTrigger(a.aircraftId,origin,data,now,reviewTimeZone);
-   if(!review.due||review.trigger==='none'||!review.flightId)continue;
+   const a=matches[0],demandTriggered=demandTriggeredAircraftIds.has(a.aircraftId);
+   const origin=demandTriggered?a.from:origins.get(a.aircraftId);
+   if(!origin||!validOrigin(origin)||a.state!=='ready'||a.issue||(!demandTriggered&&a.from!==origin)||!validId(a.routeId))continue;
+   const review=demandTriggered
+     ? (validId(sourceRunId)?{due:true,trigger:'demand' as const,flightId:`demand_${sourceRunId}_${a.aircraftId}_${a.routeId}`}:null)
+     : routeReviewTrigger(a.aircraftId,origin,data,now,reviewTimeZone);
+   if(!review||!review.due||review.trigger==='none'||!review.flightId)continue;
    const comparable=candidates.filter(c=>c?.aircraftId===a.aircraftId&&c?.comparisonReady===true&&
      c?.variableCycleComparison?.comparisonReady===true&&c.variableCycleComparison.status==='keep_current');
    if(comparable.length!==d.compared)continue;
