@@ -30,7 +30,7 @@ async function fixture(page:Page,variant=''){
 async function execute(page:Page,dryRun:boolean){const dir=await mkdtemp(join(tmpdir(),'am4-supply-'));return {dir,run:()=>runSupplies(page,dryRun,env,dir,new SupplyPort(page,800))};}
 test('dry run quotes both supplies without a purchase',async({page})=>{await fixture(page);const {dir,run}=await execute(page,true);try{const r=await run();expect(r.entries.map(e=>e.status)).toEqual(['would_buy','would_buy']);expect(await page.evaluate(()=>(window as any).purchases)).toBe(0);}finally{await rm(dir,{recursive:true,force:true})}});
 test('production confirms both stocks and payments, rejects duplicate execution',async({page})=>{await fixture(page);const {dir,run}=await execute(page,false);try{const r=await run();expect(r.entries.map(e=>e.status)).toEqual(['purchased','purchased']);expect(r.entries[1].before.balance).toBe(95500);await expect(run()).rejects.toThrow();expect(await page.evaluate(()=>(window as any).purchases)).toBe(2);}finally{await rm(dir,{recursive:true,force:true})}});
-test('above-cap prices never touch purchase controls',async({page})=>{await fixture(page,'expensive');const {dir,run}=await execute(page,false);try{const r=await run();expect(r.entries.map(e=>e.reason)).toEqual(['PRICE_NOT_BELOW_LIMIT','PRICE_NOT_BELOW_LIMIT']);expect(await page.evaluate(()=>(window as any).purchases)).toBe(0);}finally{await rm(dir,{recursive:true,force:true})}});
+test('above-cap prices never touch purchase controls',async({page})=>{await fixture(page,'expensive');const {dir,run}=await execute(page,false);try{const r=await run();expect(r.entries.map(e=>e.reason)).toEqual(['PRICE_ABOVE_LIMIT','PRICE_ABOVE_LIMIT']);expect(await page.evaluate(()=>(window as any).purchases)).toBe(0);}finally{await rm(dir,{recursive:true,force:true})}});
 for(const variant of ['callback','unknown','httpfail'])test(`blocks unverified or uncertain purchase: ${variant}`,async({page})=>{await fixture(page,variant);const {dir,run}=await execute(page,false);try{await expect(run()).rejects.toThrow('SUPPLY_HALTED');const r=JSON.parse(await readFile(join(dir,'supply-report.json'),'utf8'));expect(r.halted).toBe(true);expect(r.entries).toHaveLength(1);expect(await page.evaluate(()=>(window as any).purchases)).toBe(variant==='callback'?0:1);}finally{await rm(dir,{recursive:true,force:true})}});
 test('CO2 parser accepts bounded explanatory text without guessing duplicate sections',()=>{
  const text='QUOTA COST\nMarket status stable\n$ 100\nNext update soon\nPRICE CHANGE\nCAPACITY\nStorage available\n900 / 1000 Quotas\nHOLDING\nCurrent stock\n100 Quotas';
@@ -79,7 +79,7 @@ test('missing panel and inconsistent storage are rejected',async({page})=>{await
 test('negative CO2 holding skips expensive market and blocks cheap purchase until deficit policy is verified',()=>{
  const snapshot={pricePer1000:160,holding:-3226210,remainingCapacity:4820500,balance:14737661};
  const expensive=supplyConfig({...env,MAX_CO2_PRICE:'120'});
- expect(planPurchase(snapshot,'co2',expensive).reason).toBe('PRICE_NOT_BELOW_LIMIT');
+ expect(planPurchase(snapshot,'co2',expensive).reason).toBe('PRICE_ABOVE_LIMIT');
  const cheap=supplyConfig({...env,MAX_CO2_PRICE:'200'});
  expect(planPurchase(snapshot,'co2',cheap)).toMatchObject({quantity:0,reason:'CO2_DEFICIT_PURCHASE_POLICY_UNVERIFIED'});
 });
