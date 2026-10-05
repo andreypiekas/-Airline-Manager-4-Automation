@@ -16,8 +16,8 @@ test('completed return review satisfies today; other aircraft and origins remain
   expect(dailyReviewDue('1','GRU',journal,new Date('2026-10-01T03:00:00Z'))).toBe(true);
 });
 test('invalid timezone rejected before browser login',()=>expect(()=>reviewDay(new Date(),'invalid-zone')).toThrow());
-test('BC-605 explicit GRU origin is stable and operator override has priority',()=>{
-  expect(configuredAircraftOrigins('[]').get('22316469')).toBe('GRU');
+test('aircraft origins come only from explicit user configuration',()=>{
+  expect(configuredAircraftOrigins('[]').size).toBe(0);
   expect(configuredAircraftOrigins('[{"aircraftId":"22316469","origin":"XAP"}]').get('22316469')).toBe('XAP');
 });
 
