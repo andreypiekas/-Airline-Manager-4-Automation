@@ -32,7 +32,17 @@ export function executionEnvironment(config:DemandConfig,env:NodeJS.ProcessEnv=p
   if(mutationDeadlineEpochMs!==undefined&&(!Number.isSafeInteger(mutationDeadlineEpochMs)||mutationDeadlineEpochMs<=0))throw Error('DEMAND_EXECUTION_DEADLINE_INVALID');
   return {dryRun:config.dryRun,maxDepartures,mutationDeadlineEpochMs};
 }
-export async function runDemandExecution(page:Page,config=readDemandConfig(),env:NodeJS.ProcessEnv=process.env,directory='test-results/demand'){
+export interface DemandExecutionPrerequisites {
+  postReroutePricingBlockedAircraftIds?:ReadonlySet<string>;
+}
+
+export async function runDemandExecution(
+  page:Page,
+  config=readDemandConfig(),
+  env:NodeJS.ProcessEnv=process.env,
+  directory='test-results/demand',
+  prerequisites:DemandExecutionPrerequisites={}
+){
   const settings=executionEnvironment(config,env),optimization=optimizationConfig(env);
   const blockedDepartureKeys=optimization.returnJournal?await readUnresolvedDepartureKeys(optimization.returnJournal.directory,optimization.returnJournal.scope):new Set<string>();
   await mkdir(directory,{recursive:true});
