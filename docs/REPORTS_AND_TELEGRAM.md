@@ -64,7 +64,7 @@ Frota: 12 | voo 9 | prontas 3
 Demanda: 2/3 suficientes | insuf. 1
 Decolagens: 2 confirmadas | retidas 1 | incertas 0
 Pricing: 1 ajustada | 2 no alvo
-Rotas: KEEP 1 | HOLD 1 | reroutes 0
+Rotas: KEEP 1 | HOLD 1 | reroutes 0 | demanda→pesquisa 1/1
 Suprimentos: Fuel purchased | CO₂ skipped
 Campanhas: Eco ✅ | Reputation ✅ | decolagens ✅
 Segurança: sem resultado incerto | UI healthy
@@ -91,6 +91,7 @@ O dashboard/notifier pode destacar:
 - reroute confirmado;
 - bloqueio por Fuel;
 - demanda esgotada;
+- reanálise de rota disparada por demanda insuficiente;
 - manutenção crítica;
 - HOLD prolongado;
 - campanha obrigatória não confirmada antes das decolagens.
