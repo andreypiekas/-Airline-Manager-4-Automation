@@ -44,6 +44,24 @@ test('coleta integral das rotas — somente leitura',async({page})=>{
       const config=readDemandConfig();
       await loginForReadOnlyCollection(page,process.env,90000,stage=>{phase=`login_${stage}`;});
       await writeSourceNavigation('after_login');
+      phase='owned_hubs_probe';
+      const ownedHubs=await page.evaluate(async()=>{
+        const response=await fetch('research_main.php',{credentials:'include'});
+        if(!response.ok)return {status:'http_error',httpStatus:response.status,hubs:[]};
+        const html=await response.text(),doc=new DOMParser().parseFromString(html,'text/html');
+        const selector=doc.querySelector('#hubSelect');
+        if(!selector)return {status:'selector_missing',httpStatus:response.status,hubs:[]};
+        const hubs=Array.from(selector.querySelectorAll('option')).flatMap(option=>{
+          const id=(option.getAttribute('value')||'').trim(),name=(option.textContent||'').replace(/\s+/g,' ').trim();
+          return /^\d+$/.test(id)&&name?[{id,name:name.slice(0,160)}]:[];
+        });
+        return {status:hubs.length?'observed':'empty',httpStatus:response.status,hubs};
+      });
+      await writeFile('test-results/demand/owned-hubs-probe.json',JSON.stringify({
+        schemaVersion:1,observedAt:new Date().toISOString(),dryRun:true,mutationAuthorized:false,...ownedHubs
+      },null,2)+'\n');
+      console.log('[OwnedHubsProbe] '+JSON.stringify(ownedHubs));
+      phase='post_owned_hubs_probe';
       // MCDU is an optional paid feature. Presence of its menu does not prove ownership.
       // Do not open a purchase flow or make it a requirement for the normal collection.
       await writeFile('test-results/demand/mcdu-source-discovery.json',JSON.stringify({schemaVersion:1,
