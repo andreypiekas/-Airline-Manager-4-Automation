@@ -1,6 +1,7 @@
 import {expect, Page} from '@playwright/test';
 import {closeReadOnlyPopup} from '../optimization/cost-reference-reader';
 import {Commodity, SupplySnapshot} from './policy';
+import {assertNoInteractiveChallenge} from '../utils/challenge-guard';
 const normalize=(s:string)=>s.replace(/\s/g,'');
 export const purchaseCallback=(kind:Commodity)=>`Ajax('${kind}.php?mode=do&amount='+$('#amountInput').val(),'runme',this); playSound('currency_spend')`;
 export function parseAmount(text:string):number {
@@ -68,6 +69,7 @@ export class SupplyPort {
   }catch{return null;}
  }
  async open(kind:Commodity){
+  await assertNoInteractiveChallenge(this.page,'supplies:open');
   await closeReadOnlyPopup(this.page,this.timeout);
   const menu=this.page.locator('#smallMainMenu').getByText('Fuel',{exact:true}).locator('../..');
   if(await menu.count()!==1||!await menu.isVisible()||normalize(await menu.getAttribute('onclick')||'')!=="hideAllWhenClick();popup('fuel.php','Fuel',false,false,true);")throw Error('SUPPLY_MENU_UNVERIFIED');
@@ -101,6 +103,7 @@ export class SupplyPort {
   return {button,input};
  }
  async quote(kind:Commodity,quantity:number){
+  await assertNoInteractiveChallenge(this.page,'supplies:quote');
   const {input}=await this.verifyControl(kind);
   await input.fill(String(quantity),{timeout:this.timeout});await input.press('ArrowRight',{timeout:this.timeout});
   const expected=(await this.snapshot(kind)).pricePer1000*quantity/1000;
@@ -112,6 +115,7 @@ export class SupplyPort {
   return read();
  }
  async purchase(kind:Commodity,quantity:number,before:SupplySnapshot,quote:number){
+  await assertNoInteractiveChallenge(this.page,'supplies:before-purchase');
   const {button,input}=await this.verifyControl(kind);
   if(await input.inputValue()!==String(quantity))throw Error('SUPPLY_AMOUNT_CHANGED');
   const fresh=await this.snapshot(kind);
