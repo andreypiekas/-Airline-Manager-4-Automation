@@ -53,3 +53,5 @@ jobs:
               safe_name=meta["name"].replace("\n"," ").replace("\r"," ")[:80]
               print(f"CHAT_ID={cid} TYPE={meta['type']} NAME={safe_name}")
           PY
+
+# probe rerun after user message
