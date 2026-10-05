@@ -9,7 +9,7 @@ const snapshot=(change:Partial<AircraftSnapshot>={}):AircraftSnapshot=>({aircraf
 const collection=(a:AircraftSnapshot[],complete=true):CollectionResult=>({aircraft:a,complete,expectedRoutes:a.length,warnings:[]});
 function setup(options:{initial?:CollectionResult;fresh?:CollectionResult;prepared?:AircraftSnapshot;confirmed?:AircraftSnapshot|null;dryRun?:boolean;limit?:number;prepareFail?:boolean;clickFail?:boolean;collectFail?:boolean;saveFail?:boolean;mutationDeadlineEpochMs?:number;blockedDepartureKeys?:ReadonlySet<string>;fuelHoldingLbsAtRunStart?:number}={}) {
   let reads=0,clicks=0;const saved:ExecutionReport[]=[];
-  const port:DeparturePort={collect:async()=>{reads++;if(options.collectFail&&reads>1)throw Error('loading');return reads===1?options.initial??collection([snapshot()]):options.fresh??collection([snapshot()]);},
+  const port:DeparturePort={collect:async()=>{reads++;if(options.collectFail)throw Error('loading');return options.initial??collection([snapshot()]);},
     prepare:async a=>{if(options.prepareFail)throw Error('unverified');return options.prepared??snapshot(a);},
     depart:async()=>{clicks++;if(options.clickFail)throw Error('timeout');},
     confirm:async a=>options.confirmed===null?null:options.confirmed??snapshot({...a,state:'inflight',onboard:{Y:88,J:0,F:0},timing:flightCountdownObservation(a.aircraftId,a.routeId,'01:00:00',new Date().toISOString())})};
@@ -40,15 +40,27 @@ for(const [name,options] of Object.entries({
  'identity changed':{prepared:snapshot({aircraftId:'2'})},
  'unknown origin':{initial:collection([snapshot({to:'BBB'})]),fresh:collection([snapshot({to:'BBB'})])},
  'incomplete initial collection':{initial:collection([snapshot()],false)},
- 'incomplete fresh collection':{fresh:collection([snapshot()],false)},
  'duplicate aircraft':{initial:collection([snapshot(),snapshot({routeId:'11'})]),fresh:collection([snapshot(),snapshot({routeId:'11'})])},
  'duplicate route':{initial:collection([snapshot(),snapshot({aircraftId:'2'})]),fresh:collection([snapshot(),snapshot({aircraftId:'2'})])},
- 'loading failure':{collectFail:true},'control not verified':{prepareFail:true},
+ 'control not verified':{prepareFail:true},
 })) test(`holds without clicks: ${name}`,async()=>{const s=setup(options);const r=await s.executor.run();expect(r.summary.departed).toBe(0);expect(r.summary.held).toBeGreaterThan(0);expect(s.clicks()).toBe(0);});
 for(const [index,options] of [{clickFail:true},{confirmed:null},{confirmed:snapshot({state:'ready'})},{confirmed:snapshot({state:'inflight',timing:null})}].entries())
  test(`unknown result stops without retry case ${index}`,async()=>{const s=setup(options);const r=await s.executor.run();expect(r.halted).toBe(true);expect(r.summary.unknown).toBe(1);expect(s.clicks()).toBe(1);});
 test('persistence failure stops before operation',async()=>{const s=setup({saveFail:true});await expect(s.executor.run()).rejects.toThrow('disk');expect(s.clicks()).toBe(0);});
 test('real departure cap prevents additional attempts',async()=>{const list=[snapshot(),snapshot({aircraftId:'2',routeId:'11'})];const s=setup({initial:collection(list),fresh:collection(list)});const r=await s.executor.run();expect(s.clicks()).toBe(1);expect(r.entries[1].reason).toBe('EXECUTION_LIMIT');});
+test('multiple aircraft use one complete fleet snapshot and targeted fresh reads',async()=>{
+ const list=[snapshot(),snapshot({aircraftId:'2',routeId:'11',from:'BBB',to:'GRU',routeLabel:'BBB - GRU'})];
+ const s=setup({initial:collection(list),limit:2});
+ const r=await s.executor.run();
+ expect(s.reads()).toBe(1);
+ expect(s.clicks()).toBe(2);
+ expect(r.summary).toMatchObject({departed:2,held:0,unknown:0});
+});
+test('initial fleet collection failure aborts before any mutation',async()=>{
+ const s=setup({collectFail:true});
+ await expect(s.executor.run()).rejects.toThrow('EXECUTION_INITIAL_COLLECTION_FAILED');
+ expect(s.clicks()).toBe(0);
+});
 test('shared route capacity is allocated once, not twice',async()=>{const list=[snapshot(),snapshot({aircraftId:'2',routeId:'11',capacity:{Y:50,J:0,F:0}})];const s=setup({dryRun:true,limit:2,initial:collection(list),fresh:collection(list)});const r=await s.executor.run();expect(r.summary.simulated).toBe(1);expect(r.summary.held).toBe(1);expect(s.clicks()).toBe(0);});
 test('handler evidence redacts every unrecognized query value',()=>{const shape=departureControlShape("Ajax('route_depart.php?id=123&token=PRIVATE&ref=details&costIndex=0','dummy',this);");expect(shape).not.toContain('PRIVATE');expect(shape).not.toContain('123');expect(shape).toContain('token=<value>');});
 
