@@ -24,92 +24,31 @@ export class MaintenanceUtils {
                 : 20;
     }
 
-    /**
-     * Helper privat untuk membuka panel perencanaan.
-     * Menggunakan moveAndClick global untuk menjamin lintasan melengkung dan pendaratan acak.
-     */
+    /** Opens the maintenance planning panel using the normal UI control. */
     private async openPlanPanel() {
         const planButton = this.page.getByRole('button', { name: ' Plan' });
-        await planButton.waitFor({ state: 'visible', timeout: 15000 });
-        
-        // Panggil utilitas terpusat untuk simulasi gerak dan klik manusiawi
-        await GeneralUtils.moveAndClick(this.page, planButton);
+        await GeneralUtils.moveAndClick(this.page, planButton, 15000);
     }
 
-    /**
-     * 🛠️ FITUR BARU: SELEKSI DROP-DOWN MANUSIAWI (ANTI-TELEPORTASI)
-     * Menyimulasi tindakan manusia memilih opsi: Bergerak ke kotak drop-down, mengkliknya,
-     * menunggu panel opsi muncul di layar (jeda mata membaca), lalu memilih opsi target.
-     */
+    /** Selects an option through the native select element. */
     private async moveAndSelectOption(selectLocator: any, optionValue: string) {
-        // 1. Gerakkan mouse secara halus dan klik kotak drop-down utama untuk membukanya
-        await GeneralUtils.moveAndClick(this.page, selectLocator);
-        
-        // 2. ⏱️ JEDA PSIKOLOGIS: Meniru waktu yang dibutuhkan mata dan otak manusia untuk mencari opsi
-        await GeneralUtils.randomSleep(700, 1400); 
-
-        // 3. Eksekusi pemilihan opsi secara sinkron setelah UI-nya terpicu terbuka secara fisik
+        await selectLocator.waitFor({ state: 'visible', timeout: 10000 });
         await selectLocator.selectOption(optionValue);
-        
-        // Jeda sesaat seolah-olah manusia melepas fokus dari menu drop-down tersebut
-        await GeneralUtils.randomSleep(500, 900);
     }
 
-    /**
-     * Menyimulasi pergerakan scroll manusia yang acak (chaotic smooth scrolling).
-     * Bisa mendadak cepat, pelan, putus-putus, bahkan kelewatan lalu naik lagi.
-     */
-    private async chaoticHumanScroll(targetY: number) {
-        const steps = Math.floor(Math.random() * 4) + 3; 
-        const totalDistance = targetY > 0 ? targetY + 100 : targetY - 100; 
-        const baseDelta = totalDistance / steps;
-
-        for (let j = 0; j < steps; j++) {
-            let deltaY = baseDelta;
-            let delay = Math.floor(Math.random() * 100) + 50; 
-
-            await this.page.mouse.wheel(0, deltaY);
-            await this.page.waitForTimeout(delay);
-        }
-    }
-
-    private async humanScrollToElement(element: any) {
-        const box = await element.boundingBox();
-        const viewport = this.page.viewportSize();
-
-        if (box && viewport) {
-            if (box.y + box.height > viewport.height || box.y < 0) {
-                const targetY = box.y < 0 ? box.y - 50 : (box.y + box.height) - viewport.height + 100;
-                await this.chaoticHumanScroll(targetY);
-                await GeneralUtils.randomSleep(500, 1000);
-            }
-        }
-    }
-
-    /**
-     * Melakukan scroll balik ke atas secara penuh (mentok) secara bertahap.
-     */
     private async scrollBackToTop() {
-        console.log("Voltando ao topo do painel de manutencao...");
-        const upSteps = Math.floor(Math.random() * 3) + 4; // 4 sampai 6 kali usapan ke atas
-        for (let k = 0; k < upSteps; k++) {
-            const scrollAmount = -(Math.floor(Math.random() * 200) + 200); 
-            await this.page.mouse.wheel(0, scrollAmount);
-            await GeneralUtils.randomSleep(100, 250); 
-        }
-        await GeneralUtils.randomSleep(800, 1500); 
+        await this.page.evaluate(() => window.scrollTo(0, 0)).catch(() => undefined);
+        await GeneralUtils.randomSleep(300, 600);
     }
 
     public async repairPlanes():Promise<{repairEligible:boolean}> {
         await this.openPlanPanel();
         await GeneralUtils.randomSleep(1000, 2000);
         
-        // Upgrade tombol bulk repair menggunakan moveAndClick terpusat
         const bulkRepairButton = this.page.getByRole('button', { name: ' Bulk repair' });
         await GeneralUtils.moveAndClick(this.page, bulkRepairButton);
         await GeneralUtils.randomSleep(1200, 2200);
         
-        // --- 🚀 PROSES SELEKSI OPSI SECARA HUMAN-LIKE BERAKSI ---
         console.log(`Selecionando limite de desgaste para reparo: ${this.repairWear}%...`);
         const repairPercentSelect = this.page.locator('#repairPct');
         await this.moveAndSelectOption(repairPercentSelect, this.repairWear);
@@ -117,7 +56,6 @@ export class MaintenanceUtils {
         
         const noPlaneExists = await this.page.getByText('There are no aircraft worn to').isVisible();
         if (!noPlaneExists) {
-            // Upgrade tombol final perbaikan massal menggunakan moveAndClick terpusat
             const planBulkRepairButton = this.page.getByRole('button', { name: 'Plan bulk repair' });
             await GeneralUtils.moveAndClick(this.page, planBulkRepairButton);
         }
@@ -128,7 +66,6 @@ export class MaintenanceUtils {
         await this.openPlanPanel();
         await GeneralUtils.randomSleep(1000, 2000);
         
-        // Upgrade tombol bulk check menggunakan moveAndClick terpusat
         const bulkCheckButton = this.page.getByRole('button', { name: ' Bulk check' });
         await GeneralUtils.moveAndClick(this.page, bulkCheckButton);
         
@@ -138,7 +75,7 @@ export class MaintenanceUtils {
         let selected = 0;
         let didScroll = false; 
 
-        // 🚀 STRATEGI UTAMA 1: Pre-Scroll ke bawah panel agar seluruh kartu pesawat (.bg-white) termuat penuh di layar
+        // Percorre o painel para garantir que os cards estejam carregados.
         console.log("[Manutencao] Percorrendo painel para carregar todas as aeronaves...");
         for (let s = 0; s < 5; s++) {
             await this.page.mouse.wheel(0, 450);
@@ -146,17 +83,17 @@ export class MaintenanceUtils {
         }
         await GeneralUtils.randomSleep(1000, 1500);
 
-        // Scroll balik ke paling atas terlebih dahulu agar perhitungan indeks kartu dimulai dengan benar
+        // Retorna ao inicio antes de avaliar os cards.
         await this.page.mouse.wheel(0, -2500);
         await GeneralUtils.randomSleep(800, 1200);
 
-        // Ambil jumlah total elemen kartu pesawat `.bg-white` saat pertama kali dimuat
+        // Conta os cards de aeronaves observados.
         let cardsCount = await this.page.locator('.bg-white').count();
         console.log(`[Manutencao] Avaliando ${cardsCount} aeronaves (limite: ate ${this.hoursCheck} horas)...`);
 
-        // 🚀 STRATEGI UTAMA 2: Jalankan loop satu arah langsung dari indeks 0 hingga akhir
+        // Avalia cada card uma unica vez.
         for (let i = 0; i < cardsCount; i++) {
-            // 🔄 AMBIL ULANG LOCATOR DI SETIAP ITERASI (Mencegah Stale Element Reference setelah klik pertama)
+            // Recria o locator em cada iteracao para evitar referencia obsoleta.
             const cardElement = this.page.locator('.bg-white').nth(i);
             
             // Pengaman: Tunggu kartu terpasang dengan benar di DOM sebelum mengecek isinya
@@ -212,7 +149,7 @@ export class MaintenanceUtils {
             if (harusDiCheck) {
                 console.log(`[Preventivo] Selecionada aeronave de indice ${i} pelo motivo: ${alasan}`);
 
-                // Pastikan elemen berada di posisi tengah layar yang aman sebelum diklik oleh mouse virtual
+                // Garante que o card esteja visivel antes do clique.
                 await cardElement.scrollIntoViewIfNeeded();
                 await GeneralUtils.randomSleep(400, 800);
 
@@ -222,12 +159,11 @@ export class MaintenanceUtils {
                     didScroll = true; 
                 }
 
-                // Gerakkan kursor ke kartu pesawat secara halus dan klik secara acak di area aman kartu
                 await GeneralUtils.moveAndClick(this.page, cardElement);
                 clicked = true;
                 selected++;
 
-                // Jeda ketukan jari manusia antar klik pesawat agar aman dari Anti-Cheat game dan menunggu DOM stabil
+                // Aguarda a atualizacao do DOM antes de avaliar o proximo card.
                 await GeneralUtils.randomSleep(1500, 2500);
             }
         }
@@ -239,7 +175,6 @@ export class MaintenanceUtils {
                 await GeneralUtils.randomSleep(1000, 2000);
             }
             
-            // Upgrade tombol final bulk check menggunakan moveAndClick terpusat
             const planBulkCheckButton = this.page.getByRole('button', { name: 'Plan bulk check' });
             await GeneralUtils.moveAndClick(this.page, planBulkCheckButton);
             console.log("[Manutencao] Verificacoes em lote executadas.");
