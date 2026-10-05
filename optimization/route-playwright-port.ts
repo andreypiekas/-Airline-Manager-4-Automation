@@ -5,6 +5,7 @@ import { findFleetRoute, openFleetList } from '../demand/navigation';
 import { readOpenCandidateQuoteAfterVerifiedAjax } from './quote-reader';
 import { readRouteMutationControl } from './route-mutation-control';
 import type { RouteExecutionCandidate, RouteExecutionPort } from './route-executor';
+import { assertNoInteractiveChallenge } from '../utils/challenge-guard';
 
 export function routePrepareStepTimeout(timeout:number){
   if(!Number.isSafeInteger(timeout)||timeout<1||timeout>60_000)throw new Error('ROUTE_TIMEOUT_INVALID');
@@ -39,6 +40,7 @@ export class PlaywrightRouteExecutionPort implements RouteExecutionPort {
 
   private async openTarget(expected:AircraftSnapshot,target:RouteExecutionCandidate){
     this.prepared=null;
+    await assertNoInteractiveChallenge(this.page,'reroute:prepare');
     const timeout=routePrepareStepTimeout(this.timeout);
     // Several passive locator reads inside the fresh-context verification do not
     // carry their own timeout. Bound those reads as well so a stale/partial UI
@@ -55,6 +57,7 @@ export class PlaywrightRouteExecutionPort implements RouteExecutionPort {
     const match=callback.match(/^showFlightInfo\(this,(\d+),(\d+),false,true\);closePop\(\);$/);
     if(await reroute.count()!==1||!await reroute.isVisible()||!await reroute.isEnabled()||
       !match||match[1]!==fresh.aircraftId)throw new Error('ROUTE_PLANNER_CONTROL_UNVERIFIED');
+    await assertNoInteractiveChallenge(this.page,'reroute:open-planner');
     await reroute.click({timeout});
 
     const suggest=this.page.locator('#flightInfoContainer #introSuggest');
@@ -140,6 +143,7 @@ export class PlaywrightRouteExecutionPort implements RouteExecutionPort {
     const listener=(req:Request)=>requests.push(req.url());
     this.page.on('request',listener);
     try{
+      await assertNoInteractiveChallenge(this.page,'reroute:before-auto-price');
       await auto.click({timeout:this.timeout});
       await this.page.waitForTimeout(150);
     }finally{
@@ -180,6 +184,7 @@ export class PlaywrightRouteExecutionPort implements RouteExecutionPort {
       }catch{return false;}
     },{timeout:this.timeout});
 
+    await assertNoInteractiveChallenge(this.page,'reroute:before-create');
     const results=await Promise.allSettled([responsePromise,create.click({timeout:this.timeout})]);
     if(results[0].status!=='fulfilled'||results[1].status!=='fulfilled'||!results[0].value.ok())
       throw new Error('ROUTE_CREATE_REQUEST_UNCONFIRMED');
