@@ -100,7 +100,115 @@ export class CampaignUtils {
         await this.moveAndClick(ecoFriendlyCell);
         await GeneralUtils.randomSleep(600, 1000);
 
-        const buyButton = this.page.getByRole('button', { name: '$', exact: true }).first();
+        const buyButton = this.page.getByRole('button', { name: '
+        try {
+            await this.moveAndClick(buyButton);
+        } catch (error) {
+            if ((error as Error)?.message === 'INTERACTIVE_CHALLENGE_DETECTED_STOP') throw error;
+            return {
+                required: true, activeBefore: false, purchaseAttempted: true,
+                verifiedActive: false, status: 'unverified',
+                reason: 'ECO_PURCHASE_OUTCOME_UNCONFIRMED:' + ((error as Error)?.message || 'UNCLASSIFIED')
+            };
+        }
+
+        await GeneralUtils.randomSleep(700, 1200);
+        const verified = await this.verifyActive(active, 'campaign:eco:post-purchase');
+        return {
+            required: true, activeBefore: false, purchaseAttempted: true,
+            verifiedActive: verified,
+            status: verified ? 'purchased_verified' : 'unverified',
+            reason: verified ? 'POST_PURCHASE_ACTIVE_CONFIRMED' : 'POST_PURCHASE_ACTIVE_NOT_CONFIRMED'
+        };
+    }
+
+    private async ensureReputation(): Promise<CampaignItemEvidence> {
+        if (!this.increaseAirlineReputation) {
+            return {
+                required: false, activeBefore: false, purchaseAttempted: false,
+                verifiedActive: false, status: 'not_required', reason: 'REPUTATION_NOT_REQUIRED'
+            };
+        }
+
+        const active = this.activeReputationLocator();
+        if (await this.verifyActive(active, 'campaign:reputation:precheck')) {
+            return {
+                required: true, activeBefore: true, purchaseAttempted: false,
+                verifiedActive: true, status: 'already_active', reason: 'ACTIVE_BEFORE_ACTION'
+            };
+        }
+
+        const newCampaignButton = this.page.getByRole('button', { name: /New campaign/i }).first();
+        await this.moveAndClick(newCampaignButton);
+        await GeneralUtils.randomSleep(600, 1000);
+
+        const increaseReputationCell = this.page.getByRole('cell', { name: /Increase airline reputation/i }).first();
+        await this.moveAndClick(increaseReputationCell);
+        await GeneralUtils.randomSleep(600, 1000);
+
+        const durationOption = (Math.floor(this.campaignDuration / 4) || 1).toString();
+        const durationSelect = this.page.locator('#dSelector');
+        await this.moveAndSelectOption(durationSelect, durationOption);
+        await GeneralUtils.randomSleep(500, 800);
+
+        const targetCampaignButton = this.page
+            .locator(`tr:has(td:has-text("Campaign ${this.campaignType}")) .btn-danger`)
+            .first();
+        try {
+            await this.moveAndClick(targetCampaignButton);
+        } catch (error) {
+            if ((error as Error)?.message === 'INTERACTIVE_CHALLENGE_DETECTED_STOP') throw error;
+            return {
+                required: true, activeBefore: false, purchaseAttempted: true,
+                verifiedActive: false, status: 'unverified',
+                reason: 'REPUTATION_PURCHASE_OUTCOME_UNCONFIRMED:' + ((error as Error)?.message || 'UNCLASSIFIED')
+            };
+        }
+
+        await GeneralUtils.randomSleep(700, 1200);
+        const verified = await this.verifyActive(active, 'campaign:reputation:post-purchase');
+        return {
+            required: true, activeBefore: false, purchaseAttempted: true,
+            verifiedActive: verified,
+            status: verified ? 'purchased_verified' : 'unverified',
+            reason: verified ? 'POST_PURCHASE_ACTIVE_CONFIRMED' : 'POST_PURCHASE_ACTIVE_NOT_CONFIRMED'
+        };
+    }
+
+    public async createCampaign(): Promise<CampaignEvidence> {
+        console.log('Iniciando verificacao de campanhas...');
+        await assertNoInteractiveChallenge(this.page, 'campaign:start');
+
+        const marketingButton = this.page.getByRole('button', { name: /Marketing/i }).first();
+        await this.moveAndClick(marketingButton);
+        await GeneralUtils.randomSleep(700, 1200);
+
+        const ecoFriendly = await this.ensureEcoFriendly();
+        await GeneralUtils.randomSleep(500, 800);
+        const airlineReputation = await this.ensureReputation();
+
+        const allRequiredVerified =
+            ecoFriendly.verifiedActive &&
+            (!airlineReputation.required || airlineReputation.verifiedActive);
+
+        const evidence: CampaignEvidence = {
+            schemaVersion: 1,
+            observedAt: new Date().toISOString(),
+            ecoFriendly,
+            airlineReputation,
+            allRequiredVerified,
+            departureAuthorized: allRequiredVerified
+        };
+
+        console.log('[Campaign] ' + JSON.stringify({
+            eco: ecoFriendly.status,
+            reputation: airlineReputation.status,
+            allRequiredVerified
+        }));
+        return evidence;
+    }
+}
+ }).first();
         try {
             await this.moveAndClick(buyButton);
         } catch (error) {
