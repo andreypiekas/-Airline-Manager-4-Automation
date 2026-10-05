@@ -198,52 +198,21 @@ jobs:
 
     - name: Consolidar dashboard e estados operacionais
       if: always()
+      env:
+        BOT_RESULT: ${{ steps.bot.outcome }}
+        STALE_RUN: ${{ steps.current_head.outputs.stale }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: node scripts/company-dashboard.cjs
 
-    - name: Resumo de demanda
+    - name: Publicar painel executivo
       if: always()
       run: |
-        if [ -f test-results/demand/ui-health.md ]; then
-          cat test-results/demand/ui-health.md >> "$GITHUB_STEP_SUMMARY"
-        fi
         if [ -f test-results/demand/company-dashboard.md ]; then
           cat test-results/demand/company-dashboard.md >> "$GITHUB_STEP_SUMMARY"
-        fi
-        if [ -f test-results/demand/run-time-budget.md ]; then
-          cat test-results/demand/run-time-budget.md >> "$GITHUB_STEP_SUMMARY"
-        fi
-        if [ -f test-results/demand/demand-report.md ]; then
-          cat test-results/demand/demand-report.md >> "$GITHUB_STEP_SUMMARY"
-        fi
-        if [ -f test-results/demand/route-research.md ]; then
-          cat test-results/demand/route-research.md >> "$GITHUB_STEP_SUMMARY"
-        fi
-        if [ -f test-results/demand/candidate-data.md ]; then
-          cat test-results/demand/candidate-data.md >> "$GITHUB_STEP_SUMMARY"
-        fi
-        if [ -f test-results/demand/flight-history-continuity.md ]; then
-          cat test-results/demand/flight-history-continuity.md >> "$GITHUB_STEP_SUMMARY"
-        fi
-        if [ -f test-results/demand/flight-history-stitch.md ]; then
-          cat test-results/demand/flight-history-stitch.md >> "$GITHUB_STEP_SUMMARY"
-        fi
-        if [ -f test-results/demand/flight-history-live-stitch.md ]; then
-          cat test-results/demand/flight-history-live-stitch.md >> "$GITHUB_STEP_SUMMARY"
-        fi
-        if [ -f test-results/demand/route-execution.md ]; then
-          cat test-results/demand/route-execution.md >> "$GITHUB_STEP_SUMMARY"
-        fi
-        if [ -f test-results/demand/pricing-execution.md ]; then
-          cat test-results/demand/pricing-execution.md >> "$GITHUB_STEP_SUMMARY"
-        fi
-        if [ -f test-results/demand/optimization-report.md ]; then
-          cat test-results/demand/optimization-report.md >> "$GITHUB_STEP_SUMMARY"
-        fi
-        if [ -f test-results/demand/supply-report.md ]; then
-          cat test-results/demand/supply-report.md >> "$GITHUB_STEP_SUMMARY"
-        fi
-        if [ -f test-results/demand/execution-report.md ]; then
-          cat test-results/demand/execution-report.md >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "# Airline Manager 4 — relatório operacional" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "⚠️ Dashboard consolidado indisponível. Consulte o artifact playwright-report para diagnóstico." >> "$GITHUB_STEP_SUMMARY"
         fi
 
     - name: Enviar JSON e Markdown de demanda
@@ -265,6 +234,7 @@ jobs:
         BOT_RESULT: ${{ steps.bot.outcome }}
         DEMAND_PROLONGED_HOLD_MINUTES: ${{ vars.DEMAND_PROLONGED_HOLD_MINUTES || '180' }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        STALE_RUN: ${{ steps.current_head.outputs.stale }}
       run: node scripts/telegram-demand.cjs
 
     - name: Enviar relatorios da execucao

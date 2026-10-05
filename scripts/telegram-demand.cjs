@@ -27,17 +27,22 @@ function importantMessage(dir='test-results/demand',botResult=process.env.BOT_RE
  if(!events.length)return null;return 'AM4 alerta: '+[...new Set(events)].join('; ')+'.';
 }
 function runSummaryMessage(dir='test-results/demand',botResult=process.env.BOT_RESULT){
- const dashboard=read(dir,'company-dashboard.json'),execution=read(dir,'execution-report.json'),pricing=read(dir,'pricing-execution.json'),route=read(dir,'route-execution.json'),supply=read(dir,'supply-report.json');
- const status=botResult==='success'?'SUCESSO':botResult==='failure'?'FALHA':String(botResult||'DESCONHECIDO').toUpperCase();
- const parts=[`AM4 run: ${status}`];
- const fleet=dashboard?.fleet;if(Number.isSafeInteger(fleet?.seen))parts.push(`frota ${fleet.seen} (prontas ${fleet.ready||0}, em voo ${fleet.inflight||0})`);
- const dep=execution?.summary;if(dep&&['evaluated','departed','held','unknown'].every(k=>Number.isSafeInteger(dep[k])))parts.push(`decolagens ${dep.departed}/${dep.evaluated}; retidas ${dep.held}; incertas ${dep.unknown}`);
- const p=pricing?.summary;if(p&&['evaluated','adjusted','unchanged','unknown'].every(k=>Number.isSafeInteger(p[k])))parts.push(`pricing ${p.adjusted} ajustado(s), ${p.unchanged} no alvo, ${p.unknown} incerto(s)`);
- const r=route?.summary;if(r&&['evaluated','rerouted','held','unknown'].every(k=>Number.isSafeInteger(r[k])))parts.push(`rotas ${r.rerouted} alterada(s), ${r.held} retida(s), ${r.unknown} incerta(s)`);
- const supplyLabel=(kind)=>{const e=(supply?.entries||[]).find(x=>x?.kind===kind);return e?`${kind==='fuel'?'Fuel':'CO2'} ${e.status} (${e.reason})`:null;};
- const fuel=supplyLabel('fuel'),co2=supplyLabel('co2');if(fuel)parts.push(fuel);if(co2)parts.push(co2);
- return parts.join('; ')+'.';
+ const d=read(dir,'company-dashboard.json');
+ const status=d?.run?.stale?'IGNORADA':botResult==='success'?'SUCESSO':botResult==='failure'?'FALHA':botResult==='skipped'?'IGNORADA':String(botResult||'DESCONHECIDO').toUpperCase();
+ const n=v=>Number.isSafeInteger(v)?String(v):'n/d',fmt=v=>Number.isSafeInteger(v)?v.toLocaleString('en-US'):'n/d';
+ const lines=[`✈️ AM4 • ${status}${process.env.GITHUB_RUN_NUMBER?` • run #${process.env.GITHUB_RUN_NUMBER}`:''}`];
+ if(d?.fleet)lines.push(`Frota: ${n(d.fleet.seen)} | voo ${n(d.fleet.inflight)} | prontas ${n(d.fleet.ready)}`);
+ if(d?.demand)lines.push(`Demanda: ${n(d.demand.sufficient)}/${n(d.demand.evaluated)} suficientes | insuf. ${n(d.demand.insufficient)} | indispon. ${n(d.demand.unavailable)}`);
+ if(d?.departures)lines.push(`Decolagens: ${n(d.departures.departed)}/${n(d.departures.evaluated)} confirmadas | retidas ${n(d.departures.held)} | incertas ${n(d.departures.unknown)}`);
+ if(d?.pricing)lines.push(`Pricing: ${n(d.pricing.adjusted)} ajustadas | ${n(d.pricing.unchanged)} no alvo | incertas ${n(d.pricing.unknown)}`);
+ if(d?.routes){const r=d.routes.reviewDecisions||{};lines.push(`Rotas: ${n(d.routes.rerouted)} reroutes | revisão KEEP ${n(r.keep)} / HOLD ${n(r.hold)} / candidato ${n(r.wouldReroute)}`);}
+ const supply=(label,x)=>{if(!x)return `${label}: n/d`;const bits=[x.status];if(Number.isSafeInteger(x.pricePer1000))bits.push(`${fmt(x.pricePer1000)}/1k`);if(Number.isSafeInteger(x.quantity)&&x.quantity>0)bits.push(`qtd ${fmt(x.quantity)}`);return `${label}: ${bits.join(' • ')}`;};
+ if(d?.supplies)lines.push(`Suprimentos: ${supply('Fuel',d.supplies.fuel)} | ${supply('CO₂',d.supplies.co2)}`);
+ if(d?.quarantines)lines.push(`Segurança: quarentenas D${n(d.quarantines.departure)} R${n(d.quarantines.route)} P${n(d.quarantines.pricingRoute)} S${n(d.quarantines.supplyKinds)} | UI ${d.uiHealth?.status||'n/d'}`);
+ if(process.env.RUN_URL)lines.push(`Run: ${process.env.RUN_URL}`);
+ return lines.join('\n').slice(0,3500);
 }
+
 async function main() {
   if (process.env.DEMAND_TELEGRAM_ENABLED !== 'true') return;
   const token = process.env.TELEGRAM_BOT_TOKEN, chatId = process.env.TELEGRAM_CHAT_ID;

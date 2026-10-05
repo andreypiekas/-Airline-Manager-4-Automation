@@ -6,7 +6,7 @@ const safe=s=>String(s??'').replace(/[|\r\n<>]/g,' ');
 
 function build(dir='test-results/demand',logPath='test-results/bot.log',journalPath='.am4-state/github/return-journal.json'){
   const demand=read(dir,'demand-report.json'),fleet=read(dir,'fleet-observations.json'),execution=read(dir,'execution-report.json'),
-    routeExecution=read(dir,'route-execution.json'),candidateData=read(dir,'candidate-data.json'),supplies=read(dir,'supply-report.json'),pricing=read(dir,'pricing-execution.json'),modules=read(dir,'operational-modules.json');
+    routeExecution=read(dir,'route-execution.json'),candidateData=read(dir,'candidate-data.json'),supplies=read(dir,'supply-report.json'),pricing=read(dir,'pricing-execution.json'),modules=read(dir,'operational-modules.json'),\n    uiHealth=read(dir,'ui-health.json'),runBudget=read(dir,'run-time-budget.json');
   const log=(()=>{try{return fs.readFileSync(logPath,'utf8')}catch{return ''}})();
   const journal=readPath(journalPath),events=Array.isArray(journal?.events)?journal.events:[];
   const uncertainDepartureKeys=new Set(events.filter(x=>x?.type==='departure-uncertain').map(x=>x.aircraftId+':'+x.routeId));
@@ -39,12 +39,18 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
   });
   const count=s=>states.filter(x=>x.state===s).length;
   const supply={};
-  for(const x of supplies?.entries||[])supply[x.kind]={status:x.status,reason:x.reason,pricePer1000:x.before?.pricePer1000??null,quantity:x.plan?.quantity??null};
+  for(const x of supplies?.entries||[])supply[x.kind]={status:x.status,reason:x.reason,pricePer1000:x.before?.pricePer1000??null,quantity:x.plan?.quantity??null,estimatedCost:x.plan?.estimatedCost??null};
+  for(const [kind,policy] of Object.entries(supplies?.adaptive||{}))if(supply[kind])Object.assign(supply[kind],{effectiveMax:policy?.effectiveMax??null,policySource:policy?.source??null,samples:policy?.samples??null});
   const dashboard={
     schemaVersion:1,generatedAt:new Date().toISOString(),source:'observed-run-artifacts-only',
+    run:{number:process.env.GITHUB_RUN_NUMBER||null,id:process.env.GITHUB_RUN_ID||null,attempt:process.env.GITHUB_RUN_ATTEMPT||null,
+      sha:process.env.GITHUB_SHA||null,event:process.env.GITHUB_EVENT_NAME||null,result:process.env.BOT_RESULT||null,
+      stale:process.env.STALE_RUN==='true',mode:execution?(execution.dryRun?'simulation':'production'):null,url:process.env.RUN_URL||null},
+    demand:{collectionComplete:demand?.collectionComplete??null,evaluated:demand?.summary?.evaluated??null,sufficient:demand?.summary?.sufficient??null,
+      insufficient:demand?.summary?.insufficient??null,unavailable:demand?.summary?.unavailable??null,notReady:demand?.summary?.notReady??null},
     fleet:{seen:demand?.summary?.fleetSeen??aircraft.length,ready:aircraft.filter(a=>a.state==='ready').length,
       inflight:aircraft.filter(a=>a.state==='inflight').length,unavailable:aircraft.filter(a=>a.state==='unavailable').length},
-    departures:{departed:execution?.summary?.departed??null,held:execution?.summary?.held??null,unknown:execution?.summary?.unknown??null,
+    departures:{evaluated:execution?.summary?.evaluated??null,departed:execution?.summary?.departed??null,held:execution?.summary?.held??null,unknown:execution?.summary?.unknown??null,
       fuelHeld:(execution?.entries||[]).filter(x=>x?.status==='held'&&x?.reason==='FUEL_STOCK_INSUFFICIENT_BY_VERIFIED_HISTORY').length},
     routes:{evaluated:routeExecution?.summary?.evaluated??null,rerouted:routeExecution?.summary?.rerouted??null,
       held:routeExecution?.summary?.held??null,unknown:routeExecution?.summary?.unknown??null,
@@ -66,27 +72,61 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
       evidence:modules?.maintenance?.evidence??null},
     campaign:{status:modules?.campaign?.status??(log.includes('[Operacao] Campanhas automaticas finalizadas.')?'completed_observed':
       log.includes('[Operacao] Verificando e contratando campanhas...')?'started_observed':'not_observed')},
-    supplies:supply
+    supplies:supply,
+    uiHealth:{status:uiHealth?.status??'not_observed',mutationAuthorized:uiHealth?.mutationAuthorized??null,
+      unhealthyChecks:(uiHealth?.checks||[]).filter(x=>x?.status!=='healthy').length},
+    timeBudget:{blocked:(runBudget?.decisions||[]).filter(x=>x?.allowed===false).length,
+      decisions:(runBudget?.decisions||[]).length}
   };
   return {dashboard,states};
 }
 function markdown(d,states){
- const s=d.operationalStates;
- return ['# Dashboard consolidado da companhia','',
-  '| Indicador | Observado |','| --- | ---: |',
-  `| Frota vista | ${d.fleet.seen} |`,`| Em voo | ${d.fleet.inflight} |`,`| Prontas | ${d.fleet.ready} |`,
-  `| Decoladas neste run | ${d.departures.departed??'n/d'} |`,`| Retidas | ${d.departures.held??'n/d'} |`,
-  `| Retidas por combustivel insuficiente verificado | ${d.departures.fuelHeld??0} |`,
-  `| Reroutes confirmados | ${d.routes.rerouted??'n/d'} |`,`| Rotas sem base operacional verificada | ${d.routes.originUnavailable??0} |`,
-  `| Pricing ajustado | ${d.pricing.adjusted??'n/d'} |`,`| Pricing retido por fase | ${d.pricing.phaseHoldReason??'nenhum'} |`,'',
-  `Manutencao preventiva/A-check/reparos: **${d.maintenance.preventiveACheckRepairs}**${d.maintenance.evidence ? ` — avaliadas ${d.maintenance.evidence.evaluated??'n/d'}, A-check selecionadas ${d.maintenance.evidence.selected??'n/d'}, bulk check ${d.maintenance.evidence.bulkCheckExecuted===true?'executado':d.maintenance.evidence.bulkCheckExecuted===false?'nao necessario':'n/d'}, reparo elegivel ${d.maintenance.evidence.repairEligible===true?'sim':d.maintenance.evidence.repairEligible===false?'nao':'n/d'}` : ''}. Campanhas: **${d.campaign.status}**.`,'',
-  `Combustivel: **${d.supplies.fuel?.status??'n/d'}** (${d.supplies.fuel?.reason??'sem evidencia'}). CO2: **${d.supplies.co2?.status??'n/d'}** (${d.supplies.co2?.reason??'sem evidencia'}).`,'',
+ const s=d.operationalStates,attention=states.filter(x=>x.state!=='NORMAL');
+ const statusMap={success:'SUCESSO',failure:'FALHA',skipped:'IGNORADA'},runStatus=d.run?.stale?'IGNORADA — SHA OBSOLETO':(statusMap[d.run?.result]||String(d.run?.result||'DESCONHECIDO').toUpperCase());
+ const mode=d.run?.mode==='production'?'PRODUÇÃO':d.run?.mode==='simulation'?'SIMULAÇÃO':'N/D';
+ const sha=d.run?.sha?String(d.run.sha).slice(0,8):'n/d';
+ const q=d.quarantines,review=d.routes.reviewDecisions||{},fuel=d.supplies.fuel,co2=d.supplies.co2;
+ const fmt=n=>Number.isSafeInteger(n)?n.toLocaleString('en-US'):(n??'n/d');
+ const supplyText=(name,x)=>!x?`${name}: n/d`:`${name}: ${x.status} (${x.reason||'sem motivo'}${Number.isSafeInteger(x.pricePer1000)?`; preço ${fmt(x.pricePer1000)}/1k`:''}${Number.isSafeInteger(x.quantity)?`; qtd ${fmt(x.quantity)}`:''})`;
+ const alerts=[];
+ if(q.departure)alerts.push(`${q.departure} quarentena(s) persistente(s) de decolagem`);
+ if(q.route)alerts.push(`${q.route} quarentena(s) de reroute`);
+ if(q.pricingRoute)alerts.push(`${q.pricingRoute} quarentena(s) de pricing`);
+ if(q.supplyKinds)alerts.push(`${q.supplyKinds} quarentena(s) de suprimentos`);
+ if(d.routes.originUnavailable)alerts.push(`${d.routes.originUnavailable} aeronave(s) sem base operacional resolvida`);
+ if(review.hold)alerts.push(`${review.hold} revisão(ões) de rota em HOLD`);
+ if((d.departures.unknown||0)+(d.routes.unknown||0)+(d.pricing.unknown||0)>0)alerts.push('há resultado operacional incerto — nenhuma repetição automática');
+ if(d.uiHealth.status!=='healthy'&&d.uiHealth.status!=='not_observed')alerts.push(`UI health: ${d.uiHealth.status}`);
+ const lines=['# Airline Manager 4 — relatório operacional','',
+  `> Run **#${d.run?.number||'n/d'}** · **${runStatus}** · modo **${mode}** · SHA \`${sha}\` · ${safe(d.generatedAt)}`,
+  d.run?.url?`> [Abrir execução no GitHub Actions](${d.run.url})`:'','',
+  '## Resumo executivo','',
+  '| Área | Resultado | Evidência resumida |','| --- | --- | --- |',
+  `| Frota | **${fmt(d.fleet.seen)}** vistas | ${fmt(d.fleet.inflight)} em voo · ${fmt(d.fleet.ready)} prontas · ${fmt(d.fleet.unavailable)} indisponíveis |`,
+  `| Demanda | **${fmt(d.demand.sufficient)}/${fmt(d.demand.evaluated)}** suficientes | insuficientes ${fmt(d.demand.insufficient)} · indisponíveis ${fmt(d.demand.unavailable)} · coleta ${d.demand.collectionComplete===true?'completa':d.demand.collectionComplete===false?'incompleta':'n/d'} |`,
+  `| Decolagens | **${fmt(d.departures.departed)}/${fmt(d.departures.evaluated)}** confirmadas | retidas ${fmt(d.departures.held)} · incertas ${fmt(d.departures.unknown)} |`,
+  `| Pricing | **${fmt(d.pricing.adjusted)}** ajustadas | ${fmt(d.pricing.unchanged)} no alvo · incertas ${fmt(d.pricing.unknown)}${d.pricing.phaseHoldReason?` · fase: ${safe(d.pricing.phaseHoldReason)}`:''} |`,
+  `| Rotas | **${fmt(d.routes.rerouted)}** reroutes confirmados | revisão: KEEP ${fmt(review.keep)} · HOLD ${fmt(review.hold)} · WOULD_REROUTE ${fmt(review.wouldReroute)} |`,
+  `| UI | **${safe(d.uiHealth.status)}** | checks não saudáveis: ${fmt(d.uiHealth.unhealthyChecks)} |`,
+  `| Orçamento de tempo | **${d.timeBudget.blocked===0?'OK':'BLOQUEIOS'}** | ${fmt(d.timeBudget.blocked)} fase(s) bloqueada(s) de ${fmt(d.timeBudget.decisions)} |`,'',
+  '## Suprimentos e módulos','',
+  `- ${supplyText('Fuel',fuel)}.`,`- ${supplyText('CO₂',co2)}.`,
+  `- Manutenção/A-check/reparos: **${safe(d.maintenance.preventiveACheckRepairs)}**${d.maintenance.evidence?` — avaliadas ${fmt(d.maintenance.evidence.evaluated)}, selecionadas ${fmt(d.maintenance.evidence.selected)}, bulk check ${d.maintenance.evidence.bulkCheckExecuted===true?'executado':d.maintenance.evidence.bulkCheckExecuted===false?'não necessário':'n/d'}, reparo elegível ${d.maintenance.evidence.repairEligible===true?'sim':d.maintenance.evidence.repairEligible===false?'não':'n/d'}`:''}.`,
+  `- Campanhas: **${safe(d.campaign.status)}**.`,'',
+  '## Segurança e atenção','',
+  alerts.length?alerts.map(x=>`- ⚠️ ${safe(x)}`).join('\n'):'- ✅ Nenhum alerta agregado adicional neste run.','',
+  `Quarentenas persistentes — decolagem **${q.departure}** · reroute **${q.route}** · pricing **${q.pricingRoute}** · suprimentos **${q.supplyKinds}**.`,'',
   '## Estados operacionais','',
-  `NORMAL ${s.NORMAL}; AGUARDANDO_DEMANDA ${s.AGUARDANDO_DEMANDA}; AGUARDANDO_RECURSO ${s.AGUARDANDO_RECURSO}; PRECISA_REVISAR_ROTA ${s.PRECISA_REVISAR_ROTA}; PRECISA_REVISAR_PRECO ${s.PRECISA_REVISAR_PRECO}; MANUTENCAO ${s.MANUTENCAO}; PRONTA_PARA_DECOLAR ${s.PRONTA_PARA_DECOLAR}.`,'',
-  `Quarentenas persistentes: decolagem ${d.quarantines.departure}; reroute ${d.quarantines.route}; pricing ${d.quarantines.pricingRoute}; suprimentos ${d.quarantines.supplyKinds}.`,'',
-  '| Aeronave | Estado | Motivo |','| --- | --- | --- |',
-  ...states.map(x=>`| ${safe(x.registration)} | ${x.state} | ${safe(x.reason)} |`),'',
-  '_Somente dados observados nos artifacts deste run; campos ausentes permanecem n/d._',''].join('\n');
+  '| Estado | Quantidade |','| --- | ---: |',
+  `| NORMAL | ${s.NORMAL} |`,`| AGUARDANDO_DEMANDA | ${s.AGUARDANDO_DEMANDA} |`,`| AGUARDANDO_RECURSO | ${s.AGUARDANDO_RECURSO} |`,
+  `| PRECISA_REVISAR_ROTA | ${s.PRECISA_REVISAR_ROTA} |`,`| PRECISA_REVISAR_PRECO | ${s.PRECISA_REVISAR_PRECO} |`,
+  `| MANUTENCAO | ${s.MANUTENCAO} |`,`| PRONTA_PARA_DECOLAR | ${s.PRONTA_PARA_DECOLAR} |`,'',
+  '### Aeronaves que exigem atenção','',
+  attention.length?'| Aeronave | Estado | Motivo |\n| --- | --- | --- |\n'+attention.map(x=>`| ${safe(x.registration)} | ${x.state} | ${safe(x.reason)} |`).join('\n'):'Nenhuma aeronave fora do estado NORMAL neste run.','',
+  '## Relatórios detalhados','',
+  'Os detalhes completos permanecem no artifact **demand-report** (JSON + Markdown), incluindo demanda por aeronave, route research, pricing, reroute, supplies, histórico de voo, UI health e orçamento de tempo. O artifact **playwright-report** mantém os logs técnicos da execução.','',
+  '_O painel não transforma ausência de evidência em zero e não remove os bloqueios fail-closed. Dados operacionais detalhados permanecem nos artifacts._',''];
+ return lines.filter((x,i)=>x!==''||lines[i-1]!=='').join('\n');
 }
 function selfTest(){
  const dir=fs.mkdtempSync('/tmp/am4-dashboard-');
@@ -122,7 +162,7 @@ function selfTest(){
  assert.deepEqual(dashboard.routes.reviewDecisions,{keep:1,hold:1,wouldReroute:0,unavailable:0});
  assert.equal(dashboard.routes.originUnavailable,1);assert.equal(dashboard.pricing.phaseHoldReason,'PRICING_INITIAL_COLLECTION_INCOMPLETE');
  assert.deepEqual(dashboard.quarantines,{departure:1,route:1,pricingRoute:1,supplyKinds:1});
- assert.equal(dashboard.maintenance.preventiveACheckRepairs,'completed_observed');assert.deepEqual(dashboard.maintenance.evidence,{evaluated:22,selected:1,bulkCheckExecuted:true,repairEligible:false});assert.equal(dashboard.campaign.status,'completed_observed');
+ assert.equal(dashboard.maintenance.preventiveACheckRepairs,'completed_observed');assert.deepEqual(dashboard.maintenance.evidence,{evaluated:22,selected:1,bulkCheckExecuted:true,repairEligible:false});assert.equal(dashboard.campaign.status,'completed_observed');\n assert.equal(dashboard.uiHealth.status,'not_observed');assert.equal(dashboard.timeBudget.blocked,0);const md=markdown(dashboard,states);assert.ok(md.includes('Resumo executivo'));assert.ok(md.includes('Aeronaves que exigem atenção'));assert.ok(md.includes('Relatórios detalhados'));
  assert.deepEqual(states.find(x=>x.aircraftId==='2'),{aircraftId:'2',registration:'B',state:'PRECISA_REVISAR_ROTA',reason:'PERSISTED_UNCERTAIN_DEPARTURE_BLOCK',observedFleetState:'inflight'});
  assert.deepEqual(states.find(x=>x.aircraftId==='3'),{aircraftId:'3',registration:'C',state:'PRECISA_REVISAR_ROTA',reason:'PERSISTED_UNCERTAIN_ROUTE_BLOCK',observedFleetState:'ready'});
  assert.deepEqual(states.find(x=>x.aircraftId==='4'),{aircraftId:'4',registration:'D',state:'PRECISA_REVISAR_ROTA',reason:'PERSISTED_UNCERTAIN_DEPARTURE_BLOCK',observedFleetState:'ready'});
