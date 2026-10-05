@@ -439,6 +439,7 @@ O guard de SHA pode ter identificado que o código no `main` mudou enquanto aque
 | Documento | Conteúdo |
 | --- | --- |
 | [docs/README.md](docs/README.md) | Índice técnico |
+| [docs/GITHUB_AND_CRON_SETUP.md](docs/GITHUB_AND_CRON_SETUP.md) | Configuração completa do GitHub e cron-job.org |
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Secrets, Variables e limites |
 | [docs/DEMAND_MANAGER.md](docs/DEMAND_MANAGER.md) | Regras de demanda |
 | [docs/PRODUCTION_DEPARTURES.md](docs/PRODUCTION_DEPARTURES.md) | Executor de decolagens |
@@ -448,6 +449,7 @@ O guard de SHA pode ter identificado que o código no `main` mudou enquanto aque
 | [docs/REPORTS_AND_TELEGRAM.md](docs/REPORTS_AND_TELEGRAM.md) | Dashboard, artifacts e Telegram |
 | [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) | Estado técnico atual |
 | [AUTOMACAO.md](AUTOMACAO.md) | Guia operacional |
+| [docs/archive/](docs/archive/) | Histórico de desenvolvimento |
 
 ---
 
