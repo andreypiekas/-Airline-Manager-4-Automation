@@ -49,7 +49,7 @@ test('semi-automatic workflow disables all game mutations until manual confirmat
  expect(s).toContain('confirm_semiautomatic_execution:');
  expect(s).toContain("AM4_SEMI_AUTOMATIC: ${{ vars.SEMI_AUTOMATIC_MODE || 'false' }}");
  for(const name of ['ENABLE_TICKET_PRICING_EXECUTION','ENABLE_ROUTE_EXECUTION','ENABLE_FUEL','ENABLE_MAINTENANCE','ENABLE_CAMPAIGN','ENABLE_DEPART']){
-  expect(s).toContain(`${name}: ${{ steps.departure_settings.outputs.dry_run == 'true' && 'false'`);
+  expect(s).toContain(name+": ${{ steps.departure_settings.outputs.dry_run == 'true' && 'false'");
  }
  expect(s).not.toContain('aktifkan_random_delay');
 });
