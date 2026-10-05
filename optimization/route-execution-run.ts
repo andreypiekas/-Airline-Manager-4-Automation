@@ -69,7 +69,7 @@ export async function runRouteExecution(
   env:NodeJS.ProcessEnv=process.env,
   directory='test-results/demand'
 ){
-  const settings=routeExecutionSettings(env),optimization=optimizationConfig(env);
+  const settings=routeExecutionSettings(env),optimization=context.optimization??optimizationConfig(env);
   if(settings.enabled&&!optimization.returnJournal)throw new Error('ROUTE_EXECUTION_REQUIRES_PERSISTENT_JOURNAL');
   if(settings.enabled&&settings.mutationDeadlineEpochMs===undefined)throw new Error('ROUTE_EXECUTION_REQUIRES_MUTATION_DEADLINE');
   const blockedAircraftIds=optimization.returnJournal
