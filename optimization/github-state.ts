@@ -14,25 +14,63 @@ export class GitHubReturnState {
     if (!/^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(options.repository) || !/^[A-Za-z0-9_-]{1,100}$/.test(options.scope) || !options.token || !options.directory) throw new Error('STATE_CONFIG_INVALID');
     this.path = `/repos/${options.repository}/contents/return-journal-${options.scope}.json`;
   }
-  private async api(method: string, body?: object): Promise<any> {
+  private async raw(path: string, method: string, body?: object): Promise<Response> {
     try {
-      const response = await this.request('https://api.github.com' + this.path + (method === 'GET' ? `?ref=${BRANCH}` : ''), {
+      return await this.request('https://api.github.com' + path, {
         method, redirect: 'error', signal: AbortSignal.timeout(15000),
         headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${this.options.token}`, 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' },
         ...(body ? { body: JSON.stringify(body) } : {})
       });
-      if (!response.ok) throw new Error(`STATE_HTTP_${response.status}`);
-      return await response.json();
-    } catch (error) {
-      const message = (error as Error).message;
-      throw new Error(/^STATE_HTTP_\d{3}$/.test(message) ? message : 'STATE_NETWORK_FAILED');
+    } catch {
+      throw new Error('STATE_NETWORK_FAILED');
     }
+  }
+  private async api(method: string, body?: object): Promise<any> {
+    const response = await this.raw(this.path + (method === 'GET' ? `?ref=${BRANCH}` : ''), method, body);
+    if (!response.ok) throw new Error(`STATE_HTTP_${response.status}`);
+    return await response.json();
   }
   private parse(text: string) {
     if (Buffer.byteLength(text) > MAX_BYTES) throw new Error('STATE_TOO_LARGE');
     try { return validateReturnJournal(JSON.parse(text), this.options.scope, new Date()); }
     catch { throw new Error('STATE_INVALID'); }
   }
+  /** Ensures a fresh fork has its own state branch and journal without copying upstream runtime state. */
+  async ensureInitialized(defaultBranch = 'main'): Promise<'existing' | 'initialized'> {
+    if (!/^[A-Za-z0-9._/-]{1,200}$/.test(defaultBranch) || defaultBranch.includes('..')) throw new Error('STATE_DEFAULT_BRANCH_INVALID');
+    const existing = await this.raw(this.path + `?ref=${BRANCH}`, 'GET');
+    if (existing.ok) return 'existing';
+    if (existing.status !== 404) throw new Error(`STATE_HTTP_${existing.status}`);
+
+    const repoBase = `/repos/${this.options.repository}`;
+    const baseRef = await this.raw(`${repoBase}/git/ref/heads/${encodeURIComponent(defaultBranch)}`, 'GET');
+    if (!baseRef.ok) throw new Error(`STATE_HTTP_${baseRef.status}`);
+    let baseSha: string;
+    try {
+      const body = await baseRef.json();
+      baseSha = body?.object?.sha;
+    } catch {
+      throw new Error('STATE_RESPONSE_INVALID');
+    }
+    if (!/^[a-f0-9]{40}$/.test(baseSha!)) throw new Error('STATE_RESPONSE_INVALID');
+
+    const createRef = await this.raw(`${repoBase}/git/refs`, 'POST', { ref: `refs/heads/${BRANCH}`, sha: baseSha! });
+    if (!createRef.ok && createRef.status !== 422) throw new Error(`STATE_HTTP_${createRef.status}`);
+
+    const content = JSON.stringify({ schemaVersion: 1, scope: this.options.scope, entries: [] }) + '\n';
+    const createFile = await this.raw(this.path, 'PUT', {
+      branch: BRANCH,
+      message: 'chore: initialize return journal [skip ci]',
+      content: Buffer.from(content).toString('base64')
+    });
+    if (createFile.ok) return 'initialized';
+    if (createFile.status === 422) {
+      const raced = await this.raw(this.path + `?ref=${BRANCH}`, 'GET');
+      if (raced.ok) return 'existing';
+    }
+    throw new Error(`STATE_HTTP_${createFile.status}`);
+  }
+
   /** Explicit one-time initialization; branch must already exist. Never invoked by the bot workflow. */
   async initialize(): Promise<void> {
     const content = JSON.stringify({ schemaVersion: 1, scope: this.options.scope, entries: [] }) + '\n';
@@ -74,6 +112,7 @@ if (require.main === module) {
     const command = process.argv[2];
     if (command === 'restore') await client.restore();
     else if (command === 'save') await client.save();
+    else if (command === 'ensure') await client.ensureInitialized(process.env.GITHUB_REF_NAME || 'main');
     else if (command === 'initialize') await client.initialize();
     else throw new Error('STATE_COMMAND_INVALID');
     console.log('[State] Operacao concluida.');
