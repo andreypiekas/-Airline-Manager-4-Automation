@@ -85,6 +85,17 @@ test('campaign verification is shown in Telegram summary and blocks departures w
  }
 });
 
+test('post-reroute pricing HOLD becomes an explicit Telegram alert',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'am4-telegram-reroute-pricing-'));
+ try{
+  await writeFile(join(dir,'execution-report.json'),JSON.stringify({
+   entries:[{aircraftId:'101',status:'held',reason:'REROUTE_PRICING_NOT_VERIFIED'}]
+  }));
+  const text=importantMessage(dir,'success',join(dir,'missing-journal.json'));
+  expect(text).toContain('aeronaves reroteadas aguardando pricing confirmado: 1');
+ }finally{await rm(dir,{recursive:true,force:true});}
+});
+
 test('challenge evidence becomes an explicit Telegram alert',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'am4-telegram-challenge-'));
  try{
