@@ -155,7 +155,12 @@ export class CampaignUtils {
 
         const ecoFriendly = await this.ensureEcoFriendly();
         await GeneralUtils.randomSleep(500, 800);
-        const airlineReputation = await this.ensureReputation();
+        const airlineReputation = !ecoFriendly.verifiedActive && this.increaseAirlineReputation
+            ? {
+                required: true, activeBefore: false, purchaseAttempted: false, verifiedActive: false,
+                status: 'unverified' as const, reason: 'PREVIOUS_REQUIRED_CAMPAIGN_UNVERIFIED'
+              }
+            : await this.ensureReputation();
         const allRequiredVerified = ecoFriendly.verifiedActive &&
             (!airlineReputation.required || airlineReputation.verifiedActive);
 
