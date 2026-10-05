@@ -8,6 +8,24 @@ function booleanValue(raw, name) {
   throw new Error(`${name} deve ser true ou false.`);
 }
 
+function nonNegativeIntegerValue(raw, name) {
+  const value = (raw || '').trim();
+  if (!value) return null;
+
+  // Inputs type:number do GitHub Actions podem chegar como "0.0"/"20.0".
+  // Aceitamos apenas representacoes decimais matematicamente inteiras.
+  // Fracoes, expoentes, sinais e valores ambiguos continuam bloqueados.
+  if (!/^(?:0|[1-9]\d*)(?:\.0+)?$/.test(value)) {
+    throw new Error(`${name} deve ser inteiro nao negativo.`);
+  }
+
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`${name} deve ser inteiro nao negativo.`);
+  }
+  return parsed;
+}
+
 /** No credentials: resolve manual/API inputs and explicitly configured repository policy. */
 function resolveDepartureSettings(env) {
   const mode = (env.AM4_INPUT_MODE || 'repository').trim();
@@ -32,38 +50,30 @@ function resolveDepartureSettings(env) {
           ? 'variable:EXECUTE_INDIVIDUAL'
           : 'default:simulation';
 
-  // O input 0 significa "usar configuracao do repositorio".
-  // Se a variavel do repositorio estiver vazia ou tambem for 0,
-  // usamos o limite seguro padrao de 1 decolagem.
-  const inputLimit = (env.AM4_INPUT_MAX_DEPARTURES || '').trim();
-  const repositoryLimit = (env.AM4_REPOSITORY_MAX_DEPARTURES || '').trim();
-  const useRepositoryLimit = inputLimit === '' || inputLimit === '0';
+  // O input 0 (inclusive quando serializado como 0.0) significa
+  // "usar configuracao do repositorio".
+  const inputLimit = nonNegativeIntegerValue(env.AM4_INPUT_MAX_DEPARTURES, 'Limite manual de decolagens');
+  const repositoryLimit = nonNegativeIntegerValue(env.AM4_REPOSITORY_MAX_DEPARTURES, 'Limite do repositorio');
+  const useRepositoryLimit = inputLimit === null || inputLimit === 0;
 
-  let rawLimit;
+  let maxDepartures;
   let limitSource;
 
   if (!useRepositoryLimit) {
-    rawLimit = inputLimit;
+    maxDepartures = inputLimit;
     limitSource = 'input:limit';
-  } else if (repositoryLimit === '' || repositoryLimit === '0') {
-    rawLimit = '1';
+  } else if (repositoryLimit === null || repositoryLimit === 0) {
+    maxDepartures = 1;
     limitSource = 'default:1';
   } else {
-    rawLimit = repositoryLimit;
+    maxDepartures = repositoryLimit;
     limitSource = 'variable:MAX_INDIVIDUAL_DEPARTURES';
   }
 
-  if (!/^[1-9]\d*$/.test(rawLimit)) {
-    throw new Error('Limite de decolagens deve ser inteiro positivo.');
-  }
-
-  let maxDepartures = Number(rawLimit);
-  if (!Number.isSafeInteger(maxDepartures)) {
-    throw new Error('Limite de decolagens deve ser inteiro positivo.');
-  }
   if (!useRepositoryLimit && maxDepartures > 20) {
     throw new Error('Limite de decolagens manual deve ser inteiro de 1 a 20.');
   }
+
   if (useRepositoryLimit && maxDepartures > 20) {
     maxDepartures = 20;
     limitSource = 'variable:MAX_INDIVIDUAL_DEPARTURES:clamped-to-20';
