@@ -70,7 +70,7 @@ jobs:
           fi
           rm -rf test-results/demand
           mkdir -p test-results
-          xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" npx playwright test --headed 2>&1 | tee test-results/live-diagnostic.log
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" npx playwright test tests/live/read-only-collection.spec.ts --config=playwright.collection.config.ts --headed 2>&1 | tee test-results/live-diagnostic.log
 
       - name: Resumo do diagnostico
         if: always()
