@@ -1,9 +1,49 @@
 # Migração do repositório
 
-Origem: `andreypiekas/Airline-Manager-4`
+## Origem histórica
 
-Base migrada: `3609256efda2cd9cf7a9975174b19187dd557737`
+```text
+andreypiekas/Airline-Manager-4
+```
 
-Data de corte: 04/10/2026.
+## Repositório ativo
 
-A migração preserva o código e os safeguards fail-closed do HEAD validado. O estado operacional persistente é transferido separadamente pela branch `am4-runtime-state`. O repositório antigo não deve mais receber agendamentos operacionais após o cutover.
+```text
+andreypiekas/Airline-Manager-4-Automation
+```
+
+Data de corte: **04/10/2026**.
+
+## O que foi migrado
+
+- código operacional;
+- workflows relevantes;
+- testes;
+- documentação;
+- branch de estado persistente;
+- journal operacional;
+- quarentenas existentes;
+- safeguards fail-closed.
+
+A branch de runtime permanece:
+
+```text
+am4-runtime-state
+```
+
+## Cutover
+
+O workflow operacional principal do repositório antigo foi desativado. O cron-job.org deve apontar exclusivamente para o repositório novo.
+
+A primeira produção no novo repositório revelou guards que ainda continham o nome antigo. Eles foram corrigidos sem remover validações de contexto.
+
+Produções posteriores confirmaram no novo repositório:
+
+- decolagens reais;
+- pricing;
+- Fuel;
+- persistência do journal;
+- agendamento externo;
+- Telegram.
+
+O repositório antigo deve ser usado somente como evidência histórica.

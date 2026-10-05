@@ -1,28 +1,70 @@
-# Estado técnico da implementação — 04/10/2026
+# Estado técnico da implementação — 05/10/2026
 
-Base migrada do HEAD `3609256efda2cd9cf7a9975174b19187dd557737`.
+## Baseline operacional
 
-| Componente | Situação |
+Repositório ativo:
+
+```text
+andreypiekas/Airline-Manager-4-Automation
+```
+
+O repositório antigo é apenas histórico.
+
+## Evidências recentes
+
+- produção #6: `SUCCESS`; decolagens reais e compra de Fuel confirmadas;
+- validação #12: verde no mesmo baseline da #6;
+- produção #7: `SUCCESS`;
+- produção #7: etapa `Notificar resumo pelo Telegram` = `success`;
+- teste direto de Telegram = `TELEGRAM_TEST_SEND_OK`;
+- dashboard/Telegram executivos: cobertos por self-test e suíte offline após a atualização atual.
+
+## Componentes
+
+| Componente | Estado |
 | --- | --- |
-| Revisão diária/retorno | Implementada; KEEP/HOLD validados live |
-| Reroute nativo | Implementado/testado; aguarda novo would_reroute natural no HEAD timeout-fixed |
-| Pricing Y×1,10 / J×1,08 / F×1,06 | Implementado; Save + confirmação fresca validados live na #182 |
-| Journal persistente | Implementado e ativo |
-| Demanda adaptativa | Implementada conservadoramente com histórico verificado |
-| Estados operacionais | Implementados e ativos |
-| Dashboard | Implementado e ativo |
-| Telegram seletivo | Implementado/testado; entrega live depende de configuração externa |
-| Fuel/CO₂ adaptativos | Implementados; compra exige preço live |
-| UI health | Implementado e ativo |
-| UI_CHANGE_DETECTED | Implementado/testado |
+| Login / Fleet | Produção |
+| Demand Manager | Produção |
+| Threshold adaptativo | Produção, conservador |
+| Decolagem individual | Produção |
+| Fuel | Produção |
+| CO₂ | Produção, com quarentena persistente quando necessário |
+| Manutenção / A-check / reparos | Produção |
+| Campanhas | Produção |
+| Pricing PAX | Produção |
+| Route research | Produção em leitura |
+| Route review | Produção |
+| Reroute executor | Implementado e fail-closed |
+| Journal persistente | Produção |
+| Estados operacionais | Produção |
+| UI Health | Produção |
+| Dashboard executivo | Produção |
+| Telegram | Entrega real validada |
+| Compra automática de aeronaves | Fora do escopo |
 
 ## Safeguards obrigatórios
-- não enfraquecer `comparisonReady` ou `mutationAuthorized`;
-- não remover quarentenas persistentes;
-- não repetir resultado incerto;
-- não inventar dados econômicos;
-- não forçar reroute/pricing/departure/purchase para fabricar evidência;
-- manter journal append-only;
-- manter bloqueio de run obsoleta e orçamento de tempo.
 
-Na origem, a validação #558 aprovou 716/716 testes e as produções #169–#182 concluíram com sucesso no mesmo SHA. Links históricos nas demais documentações continuam válidos como evidência do repositório de origem.
+Não enfraquecer:
+
+- `comparisonReady`;
+- `mutationAuthorized`;
+- ACKs de execução real;
+- validação de `GITHUB_ACTIONS`;
+- repositório autorizado;
+- `GITHUB_RUN_ATTEMPT=1`;
+- journal persistente;
+- no-retry após mutação incerta;
+- verificação do SHA atual;
+- orçamento de tempo;
+- confirmação pós-Save / pós-clique;
+- preço live para supplies.
+
+## Quarentenas
+
+Resultados históricos incertos de departure e supply continuam preservados no journal. Eles não devem ser repetidos automaticamente.
+
+## Relatórios
+
+O `GITHUB_STEP_SUMMARY` é agora um painel executivo único. Os relatórios técnicos completos continuam no artifact `demand-report`.
+
+O Telegram deriva seus números do mesmo dashboard consolidado usado pelo Summary e omite identificadores sensíveis/operacionais desnecessários.

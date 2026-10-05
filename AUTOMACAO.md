@@ -1,80 +1,103 @@
-# Operacao automatica do Airline Manager 4
+# Operação do bot
 
-## Gerenciamento de demanda (nova rotina padrão)
+Guia rápido para operação diária do **Airline Manager 4 Automation**. A referência completa está em [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
-Esta versão inicia com `ENABLE_DEMAND_MANAGER=true`, `DEMAND_DRY_RUN=true` e `DEMAND_FAIL_SAFE=true`: somente login, leitura de rotas e relatório. **Nenhuma compra, manutenção, campanha ou decolagem é executada nesse modo**, mesmo que os antigos `ENABLE_*` estejam ativos. Não há fallback para `departAll`. Veja [configurações, inspeção, seletores e pendências](docs/DEMAND_MANAGER.md).
+## Workflow de produção
 
-O workflow principal fixa gerenciador e fail-safe ativos. Para executar retornos individuais reais, use o input `execute_individual=true`, inicialmente com `max_individual_departures=1`; o workflow isolado usa `execute=true`. Tambem aceita as variaveis `EXECUTE_INDIVIDUAL=true` e `MAX_INDIVIDUAL_DEPARTURES=1`, inclusive nos disparos existentes do cron. `departure_mode=simulation` forca simulacao; sem ativacao explicita por input ou variavel, continua simulacao. Rotas, tarifas, compras e revisoes economicas incompletas permanecem bloqueadas. Veja [producao controlada e payload do cron](docs/PRODUCTION_DEPARTURES.md). O `validate.yml` testa fixtures sem conta do jogo.
+```text
+.github/workflows/playwright.yml
+```
 
-## Situacao
+O workflow aceita acionamento manual e via API `workflow_dispatch`. Não existe `schedule` interno.
 
-- A execucao e iniciada manualmente pela aba **Actions** ou pela API `workflow_dispatch` utilizada no **cron-job.org**.
-- O arquivo `.github/workflows/playwright.yml` **nao possui agendamento interno**. Assim, nao ha dois agendadores solicitando execucoes.
-- O GitHub Actions possui `concurrency` para evitar duas execucoes **simultaneas** do workflow. Chamadas adicionais podem ficar pendentes; nao se deve interpretar o agendamento externo como execucao garantida em horario exato.
-- O jogo precisa estar em **ingles**, pois os seletores Playwright dependem dos rotulos em ingles.
+## cron-job.org
 
-## Seguranca
+Configuração recomendada:
 
-Cadastre os seguintes **Secrets** em **Settings > Secrets and variables > Actions**:
-- `EMAIL`: login web do Airline Manager 4.
-- `PASSWORD`: senha web do jogo (nao a senha do Apple ID).
-- `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID`: opcionais, para notificacoes.
+```text
+Método: POST
+URL: https://api.github.com/repos/andreypiekas/Airline-Manager-4-Automation/actions/workflows/playwright.yml/dispatches
 
-As credenciais do jogo sao encaminhadas por variaveis de ambiente ao job e nao sao gravadas em `.env` no GitHub Actions. Nao inclua tokens ou senhas nos arquivos do repositorio.
+Accept: application/vnd.github+json
+Authorization: Bearer SEU_TOKEN
+X-GitHub-Api-Version: 2022-11-28
+Content-Type: application/json
+```
 
-## Variaveis de operacao
+Body:
 
-Em **Settings > Secrets and variables > Actions > Variables**:
+```json
+{"ref":"main"}
+```
 
-| Variavel | Exemplo | Funcao |
-| --- | --- | --- |
-| `MAX_FUEL_PRICE` | `550` | Limite de compra normal de combustivel |
-| `MAX_CO2_PRICE` | `120` | Limite de compra normal de CO2 |
-| `MAX_FUEL_PURCHASE_PER_RUN` | `500000` | Teto opcional em litros de combustivel por execucao; omitido = sem teto adicional |
-| `MAX_CO2_PURCHASE_PER_RUN` | `500000` | Teto opcional de CO2 por execucao; omitido = sem teto adicional |
-| `REPAIR_WEAR` | `30` | Percentual usado nas reparacoes |
-| `HOURS_CHECK` | `20` | Limite de horas da verificacao de aeronaves |
-| `INCREASE_AIRLINE_REPUTATION` | `true` | Habilita campanha de reputacao |
-| `CAMPAIGN_TYPE` | `1` | Tipo de campanha |
-| `CAMPAIGN_DURATION` | `4` | Duracao da campanha |
-| `ENABLE_FUEL` | `true` | Habilita combustivel e CO2 |
-| `ENABLE_MAINTENANCE` | `true` | Habilita manutencao e A-Check |
-| `ENABLE_CAMPAIGN` | `true` | Habilita campanhas |
-| `ENABLE_DEPART` | `true` | Habilita decolagens |
-| `ALERT_CASH_ABOVE` | `5000000` | Alerta opcional por Telegram se o saldo detectado for igual/maior |
+Periodicidade operacional atual: **30 minutos**.
 
-No fluxo legado, variaveis `ENABLE_*` omitidas equivalem a `true`, preservando o comportamento anterior. Coloque `false` para desligar algum modulo. O alerta de saldo so funciona se houver Telegram configurado e o modulo de combustivel conseguir registrar o saldo. Ele nao dispara sozinho fora dos ciclos do bot.
+Use Fine-grained PAT restrito ao repositório com **Actions: Read and write**.
 
-**Atencao:** o algoritmo original tambem permite compras emergenciais por limites fixos, separados de `MAX_FUEL_PRICE` e `MAX_CO2_PRICE`. Revise antes de usar com uma companhia com pouco saldo.
+## Secrets
 
-## Agendador externo
+Obrigatórios:
 
-Configure cron-job.org:
-- Metodo: `POST`
-- URL: `https://api.github.com/repos/andreypiekas/Airline-Manager-4-Automation/actions/workflows/playwright.yml/dispatches`
-- Headers: `Authorization: Bearer <SEU_TOKEN>`, `Accept: application/vnd.github+json`, `Content-Type: application/json`
-- Body: `{"ref":"main","inputs":{"aktifkan_random_delay":"false","paksa_simpan_video":"false"}}`
-- Intervalo desejado: 30 minutos.
+```text
+EMAIL
+PASSWORD
+```
 
-Um HTTP 204 na API significa que o GitHub aceitou o pedido, e **nao** que todas as operacoes no jogo foram concluidas. Verifique a aba **Actions**.
+Opcionais para Telegram:
 
-## Diagnostico
+```text
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID
+```
 
-Os relatorios do Playwright, prints de falhas e `test-results/bot.log` sao publicados como artefato `playwright-report`. Procure por `[Login]`, `[Operacao]` ou `[Depart]`.
+## Como interpretar uma run
 
-O workflow tenta enviar uma mensagem no Telegram ao final, mas essa notificacao e opcional e erros de notificacao nao alteram o resultado do job. Um job verde nao prova, por si so, que todas as aeronaves sairam: confirme o resultado no jogo.
+`success` significa que o workflow concluiu de forma consistente. Não significa que toda fase necessariamente realizou mutação.
 
-## Limites
+É normal uma run verde terminar sem decolagens, reroutes ou compras quando:
 
-Este repositorio ja automatiza as operacoes de combustivel/CO2, manutencao, campanhas e decolagens. Compra automatica de novas aeronaves permanece fora do escopo. Revisao de rotas e pricing PAX possuem executores fail-closed com confirmacao posterior e quarentena em resultado incerto.
+- não há aeronaves prontas;
+- demanda está abaixo do threshold;
+- recurso está acima do teto;
+- preços já estão no alvo;
+- route review ficou em HOLD;
+- existe quarentena;
+- faltou evidência suficiente;
+- orçamento de tempo bloqueou a fase.
 
-Nao existe garantia de ausencia de banimento, disponibilidade 24h, sucesso de login ou horarios exatos de execucao. O uso do bot pode contrariar as regras do jogo.
+Leia o **Summary executivo** e use o artifact `demand-report` para detalhes.
 
+## Simulation
 
-## Revisão de rotas e tarifas PAX
+Escolha:
 
-A simulação também gera `optimization-report.json/.md` com tarifas Auto × Y1,10/J1,08/F1,06, arredondadas para baixo em dezenas. O comparador independente de rotas usa lucro líquido estimado por hora no ciclo de ida e volta, condicionado a retorno confirmado à base. A coleta da base e dos candidatos ainda está pendente; o relatório sinaliza isso e nenhuma troca é executada. Veja [regras, exemplos e limites](docs/ROUTES_AND_PRICING.md).
+```text
+departure_mode=simulation
+```
 
-### Abastecimento integrado ao DemandManager
+Esse modo impede as principais mutações e é apropriado para inspeções controladas.
 
-O workflow principal voltou a consultar e comprar combustível/CO₂ antes das decolagens, conforme `ENABLE_FUEL` (padrão true), `MAX_FUEL_PRICE` e `MAX_CO2_PRICE`. Compras ocorrem somente abaixo dos tetos e com orçamento/estoque válidos. O modo simulação impede compras. Não há compra emergencial acima do teto. Veja [configuração, confirmação e relatório](docs/SUPPLIES.md).
+## Estado persistente
+
+Branch:
+
+```text
+am4-runtime-state
+```
+
+Não apague o journal ou as quarentenas para liberar uma nova tentativa. Resultado incerto precisa permanecer bloqueado até existir evidência segura para tratamento manual.
+
+## Telegram
+
+O workflow envia um resumo agregado ao final quando os Secrets estão configurados. Veja [docs/REPORTS_AND_TELEGRAM.md](docs/REPORTS_AND_TELEGRAM.md).
+
+## Antes de publicar alteração operacional
+
+```bash
+npm run typecheck
+npm run build:state
+node scripts/company-dashboard.cjs --self-test
+npm test
+```
+
+Depois aguarde `validate.yml` verde. Não use uma produção real apenas para “testar se passa”.
