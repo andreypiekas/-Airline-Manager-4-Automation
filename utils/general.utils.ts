@@ -24,12 +24,6 @@ export class GeneralUtils {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    /** Move the pointer for UI stability/visibility only; no anti-detection behavior. */
-    public static async movePointer(page: Page, targetX: number, targetY: number) {
-        await assertNoInteractiveChallenge(page, 'pointer-move');
-        await page.mouse.move(targetX, targetY);
-    }
-
     /** Standard Playwright click with a challenge check immediately before interaction. */
     public static async moveAndClick(page: Page, locator: any, customTimeout = 10000) {
         await assertNoInteractiveChallenge(page, 'before-click');
