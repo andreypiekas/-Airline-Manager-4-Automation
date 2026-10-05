@@ -6,7 +6,7 @@ import {executionEnvironment} from '../demand/execute-run';
 import {Commodity,planPurchase,supplyConfig} from './policy';
 import {SupplyPort} from './port';
 import {optimizationConfig} from '../optimization/report';
-import {appendSupplyObservation,appendUncertainSupplyOperation,unresolvedSupplyKinds,validateReturnJournal} from '../optimization/return-journal';
+import {appendSupplyObservation,appendUncertainSupplyOperation,readUnresolvedSupplyKinds,unresolvedSupplyKinds,validateReturnJournal} from '../optimization/return-journal';
 import {adaptiveSupplyCap} from './adaptive-policy';
 import {calendarReference,loadReference,type FuelCalendar} from '../optimization/reference-data';
 export async function runSupplies(page:Page,dryRun:boolean,env:NodeJS.ProcessEnv=process.env,directory='test-results/demand',port=new SupplyPort(page)){
@@ -33,10 +33,16 @@ export async function runSupplies(page:Page,dryRun:boolean,env:NodeJS.ProcessEnv
  try {
   for(const kind of ['fuel','co2'] as const){
    const entry:any={kind,status:'reading',reason:'PENDING',before:null,plan:null};report.entries.push(entry);
-   if(!dryRun&&blockedSupplyKinds.has(kind)){entry.status='skipped';entry.reason='PERSISTED_UNCERTAIN_SUPPLY_BLOCK';await save();continue;}
    await save();
    await port.open(kind);entry.before=await port.snapshot(kind);
-   if(!dryRun&&optimization.returnJournal){await appendSupplyObservation(optimization.returnJournal.directory,optimization.returnJournal.scope,env.GITHUB_RUN_ID||'',kind,entry.before);}
+   if(!dryRun&&optimization.returnJournal){
+    await appendSupplyObservation(optimization.returnJournal.directory,optimization.returnJournal.scope,env.GITHUB_RUN_ID||'',kind,entry.before);
+    if(blockedSupplyKinds.has(kind)){
+     const stillBlocked=(await readUnresolvedSupplyKinds(optimization.returnJournal.directory,optimization.returnJournal.scope,new Date())).has(kind);
+     if(stillBlocked){entry.status='skipped';entry.reason='PERSISTED_UNCERTAIN_SUPPLY_BLOCK';await save();continue;}
+     entry.reconciliation={status:'resolved',reason:'NEWER_VERIFIED_SUPPLY_SNAPSHOT',mutationAuthorized:false};
+    }
+   }
    entry.plan=planPurchase(entry.before,kind,effectiveConfig);
    if(entry.plan.reason==='INVALID_DATA')throw Error('SUPPLY_DATA_INVALID');
    if(!entry.plan.quantity){entry.status='skipped';entry.reason=entry.plan.reason;await save();continue;}
