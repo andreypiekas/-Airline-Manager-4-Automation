@@ -4,6 +4,7 @@ import { writeReferenceReport } from '../optimization/reference-report';
 import { RouteReview } from '../optimization/route-optimizer';
 import { writeFleetObservations } from '../optimization/fleet-observations';
 import { analyzeOptimizationWithJournal, optimizationConfig, writeOptimizationReport } from '../optimization/report';
+import { discoverOwnedAirlineBases } from '../optimization/owned-airline-bases';
 import { Page } from '@playwright/test';
 import { readDemandConfig } from './config';
 import { DemandManager } from './manager';
@@ -15,7 +16,9 @@ import { appendFlightHistoryAnchors, appendObservedArrivals, readFlightHistoryCo
 import { writeFile } from 'node:fs/promises';
 
 export async function runDemandSimulationDetailed(page: Page, config: DemandConfig = readDemandConfig(), reviews: Record<string, RouteReview> = {}) {
-  const optimization = optimizationConfig();
+  const configuredOptimization = optimizationConfig();
+  const ownedBases = await discoverOwnedAirlineBases(page, configuredOptimization.airlineBases);
+  const optimization = {...configuredOptimization, airlineBases: ownedBases.effectiveBases};
   const research = researchConfig();
   const collection = await new DemandReader(page, 10000, true).collect();
   if(optimization.returnJournal){
@@ -50,7 +53,7 @@ export async function runDemandSimulationDetailed(page: Page, config: DemandConf
   }
   if(!candidateData.uiRestored)throw new Error('[Demand] Painel nao restaurado apos consulta; nenhuma operacao autorizada.');
   if (!report.collectionComplete) throw new Error('[Demand] Coleta incompleta. Relatorio salvo; nenhuma decolagem autorizada.');
-  return {report,collection,researchReport,candidateData};
+  return {report,collection,researchReport,candidateData,optimization,ownedBases};
 }
 
 export type DemandSimulationContext=Awaited<ReturnType<typeof runDemandSimulationDetailed>>;
