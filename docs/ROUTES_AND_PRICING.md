@@ -47,7 +47,9 @@ A revisão pode ocorrer:
 - uma vez ao dia quando a aeronave é observada em solo na própria base; ou
 - imediatamente quando o Demand Manager produz `hold_insufficient`.
 
-O gatilho de demanda tem prioridade sobre a fila normal e pode pesquisar a partir do aeroporto atual. Isso não transforma a falta de demanda em autorização de reroute: toda comparação econômica continua obrigatória.
+O gatilho de demanda tem prioridade sobre a fila normal e pode pesquisar a partir do aeroporto atual. Isso não transforma a falta de demanda em autorização de reroute.
+
+Quando o Demand Manager confirma `hold_insufficient`, a rota atual não é tratada como se fosse economicamente ruim por estimativa. O comparador usa uma base explícita de **oportunidade operacional**: a rota atual não possui departure autorizado naquele momento. Uma candidata só pode vencer essa situação quando o próprio ciclo ida+volta estiver completamente verificado, a concorrência de demanda estiver conservadoramente reservada e o primeiro ciclo permanecer positivo mesmo depois da taxa de criação/troca. O relatório identifica essa base como `verified_demand_hold_opportunity`.
 
 Estar apenas em solo não prova um retorno.
 
