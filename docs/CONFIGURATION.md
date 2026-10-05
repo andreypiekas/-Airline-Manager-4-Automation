@@ -64,6 +64,8 @@ test-results/demand/owned-airline-bases.json
 test-results/demand/owned-airline-bases.md
 ```
 
+A lista de hubs é consumida por resolução de origem e funções de route review/reroute. **Ela não é um filtro do executor de decolagem**: rotas já atribuídas podem ser despachadas em qualquer aeroporto quando os demais gates de segurança estiverem válidos.
+
 Exemplo de `AIRCRAFT_ORIGINS_JSON`:
 
 ```json
