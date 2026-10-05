@@ -115,7 +115,44 @@ Define quando muda o “dia” usado pela revisão diária de rota.
 
 ---
 
-# 2. Decolagens
+# 2. Modo semiautomático
+
+## `SEMI_AUTOMATIC_MODE`
+
+**Padrão:** `false`
+
+**Aceita:** `true` ou `false`.
+
+Quando `true`, execuções normais e chamadas do cron passam a funcionar como **análise sem mutações no jogo**.
+
+O bot coleta e prepara informações como:
+
+- aeronaves prontas;
+- demanda suficiente/insuficiente;
+- preço atual de Fuel e CO₂;
+- ajustes de pricing identificados;
+- candidatas de reroute;
+- alertas e quarentenas.
+
+Ao final, o Telegram recebe um resumo e um link para abrir o GitHub Actions.
+
+Para executar operações reais, o usuário precisa iniciar uma run manual e marcar o input:
+
+```text
+confirm_semiautomatic_execution = true
+```
+
+Essa confirmação vale **somente para aquela run**. Na próxima execução automática, o modo volta a ser apenas análise.
+
+Mesmo depois da confirmação, todos os gates normais continuam ativos. A confirmação não força departure, compra, pricing ou reroute.
+
+**Recomendação:** `true` para quem prefere revisar o cenário antes de permitir operações reais.
+
+> Se um CAPTCHA ou challenge de segurança aparecer, a execução é interrompida. O bot não tenta resolver, contornar ou repetir o desafio.
+
+---
+
+# 3. Decolagens
 
 ## `EXECUTE_INDIVIDUAL`
 
@@ -145,7 +182,7 @@ O input manual `max_individual_departures` pode substituir esse valor para uma e
 
 ---
 
-# 3. Demand Manager
+# 4. Demand Manager
 
 ## `MIN_DEMAND_PERCENTAGE`
 
@@ -241,7 +278,7 @@ Esse valor é de **observabilidade**; não autoriza departure.
 
 ---
 
-# 4. Route research
+# 5. Route research
 
 ## `ENABLE_ROUTE_RESEARCH`
 
@@ -295,7 +332,7 @@ Define o escopo das reservas de planejamento entre candidatos.
 
 ---
 
-# 5. Route review e reroute
+# 6. Route review e reroute
 
 ## `ENABLE_ROUTE_OPTIMIZER`
 
@@ -359,7 +396,7 @@ Define o número máximo de reroutes reais por execução.
 
 ---
 
-# 6. Pricing PAX
+# 7. Pricing PAX
 
 ## `ENABLE_TICKET_PRICING`
 
@@ -399,7 +436,7 @@ Um resultado incerto interrompe novas alterações independentemente desse limit
 
 ---
 
-# 7. Fuel e CO₂
+# 8. Fuel e CO₂
 
 ## `ENABLE_FUEL`
 
@@ -487,7 +524,7 @@ A política ainda pode usar um orçamento mais conservador quando não é possí
 
 ---
 
-# 8. Manutenção
+# 9. Manutenção
 
 ## `ENABLE_MAINTENANCE`
 
@@ -521,7 +558,7 @@ Com `20`, aeronaves com até 20 horas restantes podem ser selecionadas.
 
 ---
 
-# 9. Campanhas
+# 10. Campanhas
 
 ## `ENABLE_CAMPAIGN`
 
@@ -559,7 +596,7 @@ O módulo converte esse número para a opção esperada pela interface.
 
 ---
 
-# 10. Controle geral de Depart
+# 11. Controle geral de Depart
 
 ## `ENABLE_DEPART`
 
@@ -575,7 +612,7 @@ O Demand Manager e o executor individual continuam aplicando seus próprios gate
 
 ---
 
-# 11. Observabilidade e compatibilidade
+# 12. Observabilidade e compatibilidade
 
 ## `ALERT_CASH_ABOVE`
 
@@ -603,7 +640,7 @@ Ela não é um switch público normal.
 
 ---
 
-# 12. Variáveis internas que não devem ser criadas manualmente
+# 13. Variáveis internas que não devem ser criadas manualmente
 
 Algumas variáveis de ambiente existem durante a execução, mas são definidas pelo próprio workflow e funcionam como guards de segurança.
 
@@ -635,7 +672,7 @@ Esses valores são controlados pelo workflow/runtime e fazem parte dos mecanismo
 
 ---
 
-# 13. Configuração recomendada para começar
+# 14. Configuração recomendada para começar
 
 Você pode executar o bot sem criar todas as Variables, porque os defaults já existem.
 
