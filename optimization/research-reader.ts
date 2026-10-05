@@ -2,7 +2,7 @@ import { openFleetList as openList, findFleetRoute as findRoute } from '../deman
 import { expect, Page } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { AircraftSnapshot, CollectionResult } from '../demand/types';
+import { AircraftSnapshot, CollectionResult, DemandReport } from '../demand/types';
 import { DemandReader } from '../demand/reader';
 import { OptimizationConfig } from './report';
 import { fleetObservations } from './fleet-observations';
@@ -53,11 +53,11 @@ export function researchConfig(env: NodeJS.ProcessEnv = process.env): ResearchCo
     return value;
   };
   return { enabled: enabled === 'true', maxAircraft: bounded('ROUTE_RESEARCH_MAX_AIRCRAFT',3,10),
-    maxSuggestions: bounded('ROUTE_RESEARCH_MAX_SUGGESTIONS',3,10), timeout: 10000 };
+    maxSuggestions: bounded('ROUTE_RESEARCH_MAX_SUGGESTIONS',5,10), timeout: 10000 };
 }
 
 /** Observation only: quotes are never converted into complete economic reviews. */
-export async function researchFleetCandidates(page: Page, collection: CollectionResult, optimization: OptimizationConfig, config = researchConfig(), now = new Date()) {
+export async function researchFleetCandidates(page: Page, collection: CollectionResult, optimization: OptimizationConfig, config = researchConfig(), now = new Date(), demandReport:DemandReport|null=null) {
   // Validate injected configuration too, before any navigation.
   if (typeof config.enabled !== 'boolean' || !Number.isSafeInteger(config.maxAircraft) || config.maxAircraft < 1 || config.maxAircraft > 10 ||
     !Number.isSafeInteger(config.maxSuggestions) || config.maxSuggestions < 1 || config.maxSuggestions > 10 ||
@@ -73,26 +73,43 @@ export async function researchFleetCandidates(page: Page, collection: Collection
       );
     }catch{reviewJournalAvailable=false;}
   }
+  const demandByAircraft=new Map((demandReport?.decisions||[]).map(d=>[d.aircraftId,d] as const));
   const aircraft = observations.aircraft.map(a => {
+    const demand=demandByAircraft.get(a.aircraftId);
+    const demandTriggered=demand?.decision==='hold_insufficient'&&demand.routeId===a.routeId;
+    const researchOrigin=demandTriggered?a.currentAirport:a.operationalOrigin;
     let status=!config.enabled || !optimization.routesEnabled ? 'disabled' : !a.detailsVerified ? 'data_unavailable' :
-      !a.operationalOrigin ? 'origin_unavailable' : a.state !== 'ready' ? 'pending_inflight' :
+      a.state !== 'ready' ? 'pending_inflight' :
+      !researchOrigin ? 'origin_unavailable' :
+      demandTriggered ? 'queued_demand' :
+      !a.operationalOrigin ? 'origin_unavailable' :
       a.currentAirport !== a.operationalOrigin ? 'pending_base_return' : 'queued';
-    if(status==='queued'&&optimization.returnJournal&&!reviewJournalAvailable)status='journal_unavailable';
+    if((status==='queued'||status==='queued_demand')&&optimization.returnJournal&&!reviewJournalAvailable)status='journal_unavailable';
     else if(status==='queued'&&reviewJournal&&!dailyReviewDue(a.aircraftId,a.operationalOrigin,reviewJournal,now,optimization.reviewTimeZone))
       status='completed_today';
-    return {aircraftId:a.aircraftId,registration:a.registration,origin:a.operationalOrigin,routeId:a.routeId,status,
-      result:null as Awaited<ReturnType<typeof collectOpenRouteSuggestions>> | null};
+    return {
+      aircraftId:a.aircraftId,registration:a.registration,origin:a.operationalOrigin,researchOrigin,routeId:a.routeId,status,
+      trigger:demandTriggered?'demand_insufficient' as const:'scheduled_review' as const,
+      demandOccupancyPercentage:demandTriggered?demand?.occupancyPercentage??null:null,
+      result:null as Awaited<ReturnType<typeof collectOpenRouteSuggestions>> | null
+    };
   });
-  const queued=aircraft.filter(a=>a.status==='queued');
-  const rotation=researchQueueRotation(queued,now);
-  const report = {schemaVersion:3,generatedAt:now.toISOString(),dryRun:true,mutationAuthorized:false,
+  const demandQueued=aircraft.filter(a=>a.status==='queued_demand').sort((a,b)=>
+    (a.demandOccupancyPercentage??Number.POSITIVE_INFINITY)-(b.demandOccupancyPercentage??Number.POSITIVE_INFINITY)||
+    a.aircraftId.localeCompare(b.aircraftId)
+  );
+  const scheduledQueued=aircraft.filter(a=>a.status==='queued');
+  const rotation=researchQueueRotation(scheduledQueued,now);
+  const prioritized=[...demandQueued,...rotation.entries];
+  const report = {schemaVersion:4,generatedAt:now.toISOString(),dryRun:true,mutationAuthorized:false,
     candidatesComplete:false,comparisonReady:false,collectionComplete:collection.complete,config,uiRestored:true,
-    queueRotation:{eligible:queued.length,slot:rotation.slot,offset:rotation.offset,windowMinutes:rotation.windowMinutes},
+    queueRotation:{eligible:prioritized.length,demandTriggeredEligible:demandQueued.length,scheduledEligible:scheduledQueued.length,
+      slot:rotation.slot,offset:rotation.offset,windowMinutes:rotation.windowMinutes},
     warnings:reviewJournalAvailable?[] as string[]:['RESEARCH_JOURNAL_UNAVAILABLE'],aircraft,
     diagnosticProbe:null as Awaited<ReturnType<typeof probeOpenRouteControl>> | null,
     diagnosticProbes:[] as Awaited<ReturnType<typeof probeOpenRouteControl>>[]};
   let attempted=0;
-  for (const entry of rotation.entries) {
+  for (const entry of prioritized) {
     if (attempted >= config.maxAircraft) {entry.status='deferred_limit';continue;}
     attempted++;
     try {
@@ -100,13 +117,14 @@ export async function researchFleetCandidates(page: Page, collection: Collection
       const expected = collection.aircraft.find(a => a.aircraftId === entry.aircraftId)!;
       await findRoute(page,expected,config.timeout);
       const fresh = await new DemandReader(page,config.timeout).readReadyAircraftDetails(expected);
-      if (!fresh.operational || !expected.operational || fresh.operational.rangeKm !== expected.operational.rangeKm || fresh.operational.minRunwayFt !== expected.operational.minRunwayFt) throw new Error('RESEARCH_CONTEXT_CHANGED');
+      if (!fresh.operational || !expected.operational || fresh.operational.rangeKm !== expected.operational.rangeKm || fresh.operational.minRunwayFt !== expected.operational.minRunwayFt ||
+        !entry.researchOrigin || fresh.from!==entry.researchOrigin) throw new Error('RESEARCH_CONTEXT_CHANGED');
       const reroute = page.locator('#detailsAction').getByRole('button',{name:/Reroute$/});
       if (await reroute.count() !== 1 || !await reroute.isVisible() || !await reroute.isEnabled() ||
         !new RegExp(`^showFlightInfo\\(this,${fresh.aircraftId},\\d+,false,true\\);closePop\\(\\);$`).test(await reroute.getAttribute('onclick') || '')) throw new Error('RESEARCH_PLANNER_CONTROL_UNVERIFIED');
       await reroute.click({timeout:config.timeout});
       await page.locator('#flightInfoContainer #introSuggest').waitFor({state:'visible',timeout:config.timeout});
-      entry.result = await collectOpenRouteSuggestions(page,fresh,entry.origin,config.maxSuggestions,config.timeout,optimization.minOccupancy);
+      entry.result = await collectOpenRouteSuggestions(page,fresh,entry.researchOrigin,config.maxSuggestions,config.timeout,optimization.minOccupancy);
       entry.status = entry.result.status;
     } catch {entry.status='unavailable';report.warnings.push(`RESEARCH_UNAVAILABLE:${entry.aircraftId}`);}
     finally {
