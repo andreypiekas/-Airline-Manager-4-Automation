@@ -24,50 +24,9 @@ export class FuelUtils {
         console.log("Preco maximo de CO2: " + this.maxCo2Price);
     }
 
-    /**
-     * Menyimulasi pergerakan kursor mouse yang halus dari posisi saat ini ke koordinat target.
-     * Mencegah kursor melompat instan ala robot dengan memberikan efek kurva/noise mikro.
-     */
-    private async humanMouseMove(targetX: number, targetY: number) {
-        const steps = Math.floor(Math.random() * 5) + 5; // 5-10 langkah pergerakan kursor
-        let currentX = targetX + (Math.random() * 200 - 100);
-        let currentY = targetY + (Math.random() * 200 - 100);
-
-        for (let i = 1; i <= steps; i++) {
-            const t = i / steps;
-            const noiseX = (Math.random() - 0.5) * 5;
-            const noiseY = (Math.random() - 0.5) * 5;
-            
-            const x = currentX + (targetX - currentX) * t + noiseX;
-            const y = currentY + (targetY - currentY) * t + noiseY;
-
-            await this.page.mouse.move(x, y);
-            await this.page.waitForTimeout(Math.floor(Math.random() * 20) + 10);
-        }
-        await this.page.mouse.move(targetX, targetY);
-    }
-
-    /**
-     * Helper privat untuk menggerakkan mouse ke elemen target secara acak di dalam area kotak,
-     * lalu melakukan humanClick. Manusia tidak pernah mengklik tepat di tengah elemen secara konstan.
-     */
+    /** Standard UI interaction; timing waits are only for interface stability. */
     private async moveAndClick(locator: any) {
-        const box = await locator.boundingBox();
-        if (box) {
-            // --- TRIK ACAK KOORDINAT (HUMAN RANDOMIZATION) ---
-            // Kita beri batas aman padding 15% dari tepi kotak agar klik tidak meleset ke luar tombol
-            const paddingX = box.width * 0.15;
-            const paddingY = box.height * 0.15;
-
-            // Mengacak titik tujuan di dalam area aman kotak tombol/input
-            const randomX = box.x + paddingX + (Math.random() * (box.width - (paddingX * 2)));
-            const randomY = box.y + paddingY + (Math.random() * (box.height - (paddingY * 2)));
-
-            // Arahkan kursor menuju titik acak tersebut dengan lintasan halus
-            await this.humanMouseMove(randomX, randomY);
-            await GeneralUtils.randomSleep(200, 500); // Jeda sesaat setelah mouse sampai
-        }
-        await GeneralUtils.humanClick(this.page, locator);
+        await GeneralUtils.moveAndClick(this.page, locator);
     }
 
     public async getCurrentBalance() {
@@ -104,8 +63,7 @@ export class FuelUtils {
         }
 
         const getCurrentFuelUnitPrice = async () => {
-            // Gerakkan kursor acak dan klik input box
-            await this.moveAndClick(fuelInput);
+                        await this.moveAndClick(fuelInput);
             await GeneralUtils.randomSleep(500, 1200);
 
             await fuelInput.press('Control+a');
@@ -197,8 +155,7 @@ export class FuelUtils {
                 return;
             }
 
-            // Gerakkan kursor acak menuju kotak input
-            await this.moveAndClick(fuelInput);
+                        await this.moveAndClick(fuelInput);
             await GeneralUtils.randomSleep(500, 1200);
 
             await fuelInput.press('Control+a');
@@ -207,8 +164,7 @@ export class FuelUtils {
             await fuelInput.pressSequentially(amountToBuy.toString(), { delay: Math.floor(Math.random() * 80) + 40 });
             await GeneralUtils.randomSleep(1000, 2000);
 
-            // Gerakkan kursor acak menuju ke tombol Purchase
-            const purchaseButton = this.page.getByRole('button', { name: ' Purchase' });
+                        const purchaseButton = this.page.getByRole('button', { name: ' Purchase' });
             await this.moveAndClick(purchaseButton);
             
             console.log(`Combustivel comprado. Quantidade: ${amountToBuy} litros${label}`);
@@ -266,8 +222,7 @@ export class FuelUtils {
         if(curCo2Price > 0 && curCo2Price < this.maxCo2Price) {
             const emptyCo2Capacity = String(Math.min(emptyCo2, co2Limit));
 
-            // Gerakkan kursor secara halus dan acak ke input box
-            await this.moveAndClick(purchaseInput);
+                        await this.moveAndClick(purchaseInput);
             await GeneralUtils.randomSleep(500, 1200);
             
             await purchaseInput.press('Control+a');
@@ -276,8 +231,7 @@ export class FuelUtils {
             await purchaseInput.pressSequentially(emptyCo2Capacity, { delay: Math.floor(Math.random() * 80) + 40 });
             await GeneralUtils.randomSleep(1000, 2000);
             
-            // Gerakkan kursor secara halus dan acak menuju tombol Purchase CO2
-            const purchaseButton = this.page.getByRole('button', { name: ' Purchase' });
+                        const purchaseButton = this.page.getByRole('button', { name: ' Purchase' });
             await this.moveAndClick(purchaseButton);
 
             console.log('CO2 comprado. Quantidade: ' + emptyCo2Capacity);
