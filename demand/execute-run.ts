@@ -60,7 +60,8 @@ export async function runDemandExecution(page:Page,config=readDemandConfig(),env
   const campaignGateVerified=campaignGateVerifiedRaw==='true';
   const report=await new IndividualDepartureExecutor(new PlaywrightDeparturePort(page),config,{...settings,
     blockedDepartureKeys,fuelHoldingLbsAtRunStart,
-    campaignVerified:!campaignGateRequired||campaignGateVerified},save,adaptive).run();
+    campaignVerified:!campaignGateRequired||campaignGateVerified,
+    postReroutePricingBlockedAircraftIds:prerequisites.postReroutePricingBlockedAircraftIds},save,adaptive).run();
   console.log('[IndividualDepartures] '+JSON.stringify(report.summary));
   if(!settings.dryRun&&optimization.returnJournal){
     const held=await appendDemandHoldObservations(optimization.returnJournal.directory,optimization.returnJournal.scope,env.GITHUB_RUN_ID||'',report);
