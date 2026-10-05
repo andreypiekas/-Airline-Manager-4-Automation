@@ -1,111 +1,237 @@
-# Airline Manager 4 Automation
+# ✈️ Airline Manager 4 Automation
 
-Automação operacional para **Airline Manager 4** construída com **TypeScript, Playwright e GitHub Actions**, com foco em execução conservadora, confirmação pós-operação e persistência de evidências.
+[![Validate](https://github.com/andreypiekas/Airline-Manager-4-Automation/actions/workflows/validate.yml/badge.svg)](https://github.com/andreypiekas/Airline-Manager-4-Automation/actions/workflows/validate.yml)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Playwright](https://img.shields.io/badge/Playwright-Automation-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **Projeto não oficial.** O uso de automação pode contrariar regras do jogo. Não existe garantia de ausência de bloqueio, limitação ou banimento.
+Automação operacional para **Airline Manager 4 (AM4)** construída com **TypeScript, Playwright e GitHub Actions**.
 
-## Visão geral
+O projeto automatiza rotinas repetitivas da companhia aérea com uma abordagem **fail-closed**: antes de executar uma ação no jogo, o bot tenta validar contexto, identidade, demanda, recursos e controles nativos da interface. Quando não há evidência suficiente, a operação é mantida em `HOLD` em vez de assumir dados ou repetir ações de forma incerta.
 
-O bot foi projetado para automatizar somente operações que consegue **observar, validar e confirmar**. Quando a evidência é incompleta, divergente ou antiga, a decisão padrão é não executar a mutação.
+> [!WARNING]
+> **Projeto não oficial e não afiliado ao Airline Manager 4.** Automação pode contrariar regras ou termos do jogo. O projeto reduz riscos operacionais do próprio bot, mas **não oferece garantia contra bloqueios, limitações ou banimento da conta**.
 
-| Área | Estado atual |
+---
+
+## Principais recursos
+
+| Recurso | Estado |
 | --- | --- |
-| Login e coleta da frota | Produção |
-| Descoberta automática de bases | Produção; leitura live dos hubs da conta |
-| Demand Manager | Produção |
-| Decolagens individuais | Produção, com confirmação fresca |
-| Fuel | Produção, compra com preço live e confirmação |
-| CO₂ | Produção, sujeito a quarentena persistente |
-| Manutenção / A-check / reparos | Produção |
-| Campanhas | Produção |
-| Pricing PAX | Produção, Save + releitura confirmada |
-| Route research | Produção em leitura |
-| Revisão diária / retorno à base | Produção |
-| Reroute | Executor implementado; somente com comparação completa |
-| Journal persistente | Produção |
-| Estados operacionais | Produção |
-| UI Health | Produção |
-| Dashboard GitHub | Produção |
-| Telegram | Envio real validado |
-| Compra de novas aeronaves | Fora do escopo |
+| Login e leitura da frota | ✅ Produção |
+| Descoberta automática de hubs/bases | ✅ Produção |
+| Demand Manager | ✅ Produção |
+| Decolagens individuais | ✅ Produção |
+| Cobertura de rotas em qualquer aeroporto | ✅ Produção |
+| Compra de Fuel com preço ao vivo | ✅ Produção |
+| Compra de CO₂ | ✅ Produção |
+| Manutenção, A-check e reparos | ✅ Produção |
+| Campanhas de marketing | ✅ Produção |
+| Pricing automático PAX | ✅ Produção |
+| Pesquisa de rotas | ✅ Leitura |
+| Revisão de rota no retorno/diária | ✅ Produção |
+| Reroute automático | 🛡️ Fail-closed |
+| Histórico persistente por aeronave | ✅ Produção |
+| Threshold adaptativo de demanda | ✅ Produção |
+| Dashboard no GitHub Actions | ✅ Produção |
+| Notificações via Telegram | ✅ Produção |
+| Compra automática de aeronaves | ❌ Fora do escopo |
 
 O estado técnico detalhado está em [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
 
-## Princípios de segurança
+---
 
-Os seguintes invariantes fazem parte do desenho do projeto:
+## Como o bot trabalha
 
-1. **Fail-closed:** ausência de evidência nunca é convertida em autorização.
-2. **Sem retry após mutação incerta:** se houve tentativa e o resultado não foi confirmado, a operação entra em quarentena.
-3. **Persistência entre runs:** journal e quarentenas sobrevivem a runners efêmeros.
-4. **Run obsoleta não acessa o jogo:** o workflow compara o SHA enfileirado com o HEAD antes da fase autenticada.
-5. **Reruns operacionais são rejeitados:** produção real exige `GITHUB_RUN_ATTEMPT=1`.
-6. **Pricing exige releitura pós-Save.**
-7. **Reroute exige comparação fresca, completa, `comparisonReady=true` e autorização explícita de mutação.**
-8. **Supply exige preço live:** calendários e referências externas nunca autorizam compra.
-9. **Orçamento de tempo pode bloquear uma fase antes do clique.**
-10. **Dados econômicos ausentes não viram zero.**
+O bot não usa uma lista fixa de aeroportos para decidir quais aeronaves podem decolar.
 
-## Fluxo de uma execução
+### Decolagens em qualquer aeroporto
 
-O workflow principal é `.github/workflows/playwright.yml`.
+Para uma **rota já existente**, o executor é deliberadamente **base-agnostic**.
+
+Isso significa que uma aeronave pronta pode ser processada independentemente do aeroporto atual, desde que os demais requisitos sejam confirmados:
+
+- aeronave e rota identificadas de forma única;
+- estado realmente pronto para decolagem;
+- demanda recente e suficiente;
+- capacidade e layout consistentes;
+- botão nativo de `Depart` validado;
+- estoque de Fuel compatível quando houver evidência disponível;
+- ausência de quarentena operacional;
+- orçamento de tempo suficiente para concluir e confirmar a ação.
+
+As bases/hubs da companhia são relevantes para funções que realmente dependem de uma **origem operacional**, como revisão de rota e reroute. Elas **não limitam o despacho normal das rotas existentes**.
+
+### Descoberta dinâmica de hubs
+
+Em cada execução autenticada, o bot pode consultar a interface nativa do AM4 em modo de leitura e descobrir os hubs pertencentes à companhia.
+
+Os IDs observados são cruzados com o catálogo local de aeroportos. A lista live só é usada quando pode ser resolvida de forma consistente.
+
+`AIRLINE_BASES_JSON` existe apenas como **fallback conservador**.
+
+Assim, uma nova base pode ser reconhecida automaticamente sem precisar alterar o código do executor de decolagem.
+
+---
+
+## Demand Manager
+
+Antes de autorizar uma decolagem, o Demand Manager avalia a capacidade disponível e a demanda restante.
+
+Entre os controles estão:
+
+- demanda por classe `Y / J / F`;
+- capacidade da aeronave;
+- idade da observação;
+- compartilhamento conservador de demanda entre aeronaves;
+- threshold mínimo configurado;
+- threshold adaptativo baseado em histórico verificado;
+- identidade única da rota e da aeronave.
+
+Configuração padrão:
 
 ```text
-workflow_dispatch
-  ↓
-checkout / Node / dependências
-  ↓
-typecheck + build + testes offline
-  ↓
-verificação do SHA atual
-  ↓
-restauração do journal persistente
-  ↓
-resolução do modo e limite de decolagens
-  ↓
-login + UI Health
-  ↓
-descoberta live de todas as bases/hubs da conta
-  ↓
-Fuel / CO₂
-  ↓
-manutenção / campanhas
-  ↓
-coleta completa da frota e demanda
-  ↓
-route research / route review
-  ↓
-reroute fail-closed
-  ↓
-pricing PAX
-  ↓
-decolagens individuais
-  ↓
-persistência do journal
-  ↓
-dashboard executivo + artifacts + Telegram
+MIN_DEMAND_PERCENTAGE=80
+DEMAND_THRESHOLD_MODE=aggregate
+DEMAND_POOL_SCOPE=airport-pair
+DEMAND_MAX_AGE_SECONDS=300
 ```
 
-O workflow usa `concurrency.group: airline-manager-4-main` com `cancel-in-progress: false` para evitar duas automações simultâneas.
+O threshold adaptativo pode elevar o limite quando o histórico fornece evidência suficiente. Ele não reduz o piso configurado com dados fracos ou incompletos.
 
-## Requisitos para desenvolvimento local
+---
 
-- Node.js 22
+## Pricing automático
+
+O módulo de pricing parte do **Auto Price nativo do AM4** e aplica:
+
+```text
+Y = Auto Price × 1.10
+J = Auto Price × 1.08
+F = Auto Price × 1.06
+```
+
+O valor final é normalizado para múltiplos de 10.
+
+O fluxo exige:
+
+1. leitura do Auto Price;
+2. cálculo do alvo;
+3. validação do contexto da rota;
+4. `Save` somente quando autorizado;
+5. releitura da tarifa após o salvamento;
+6. confirmação explícita do resultado.
+
+Uma alteração cujo resultado fique incerto não é repetida automaticamente.
+
+---
+
+## Route Review e Reroute
+
+A revisão de rota pode acontecer:
+
+- após um retorno confirmado à base operacional; ou
+- uma vez ao dia quando a aeronave é observada em solo na própria base.
+
+As decisões são classificadas como:
+
+- **KEEP** — manter a rota atual;
+- **HOLD** — evidência insuficiente ou cenário não seguro para alteração;
+- **REROUTE** — existe candidata superior e todos os gates obrigatórios foram satisfeitos.
+
+Um reroute real só pode ocorrer quando a comparação é fresca e suficientemente completa, incluindo os controles internos `comparisonReady` e `mutationAuthorized`.
+
+O bot não trata uma lista parcial de sugestões como prova da melhor rota global.
+
+---
+
+## Fuel e CO₂
+
+O módulo de suprimentos usa o **preço observado ao vivo na interface**.
+
+Exemplo de configuração:
+
+```text
+MAX_FUEL_PRICE=550
+MAX_CO2_PRICE=120
+MIN_CASH_RESERVE=0
+```
+
+O bot verifica preço, capacidade disponível, limites configurados e contexto antes da compra.
+
+Após uma tentativa, estoque e resultado financeiro são relidos. Resultado inconclusivo entra em quarentena e não é repetido automaticamente.
+
+---
+
+## Segurança operacional
+
+A arquitetura foi construída em torno de alguns princípios:
+
+1. **Fail-closed** — falta de evidência significa não executar.
+2. **Sem retry após mutação incerta** — uma ação que pode ter sido executada não é clicada novamente às cegas.
+3. **Confirmação pós-operação** — departures, pricing e supplies precisam de evidência posterior.
+4. **Estado persistente** — histórico e quarentenas sobrevivem aos runners efêmeros do GitHub Actions.
+5. **Proteção contra rerun** — produção real rejeita reruns do mesmo GitHub Actions run.
+6. **Proteção contra código obsoleto** — o SHA é conferido antes da fase autenticada.
+7. **UI nativa validada** — controles precisam corresponder ao contexto esperado antes de um clique.
+8. **Dados ausentes não viram zero** — valores econômicos ou operacionais desconhecidos permanecem desconhecidos.
+9. **Limites por execução** — mutations são limitadas para reduzir impacto de comportamento inesperado.
+10. **Orçamento de tempo** — nenhuma fase crítica começa quando não há janela suficiente para concluí-la com segurança.
+
+---
+
+## Fluxo de execução
+
+```mermaid
+flowchart TD
+    A[workflow_dispatch] --> B[Checkout + Node + dependências]
+    B --> C[Typecheck + build + testes offline]
+    C --> D[Verificação do SHA atual]
+    D --> E[Restauração do estado persistente]
+    E --> F[Login + UI Health]
+    F --> G[Descoberta dinâmica de hubs]
+    G --> H[Fuel / CO₂]
+    H --> I[Manutenção / campanhas]
+    I --> J[Coleta da frota + demanda]
+    J --> K[Route research / review]
+    K --> L[Reroute fail-closed]
+    L --> M[Pricing PAX]
+    M --> N[Decolagens individuais]
+    N --> O[Persistência do journal]
+    O --> P[Dashboard + artifacts + Telegram]
+```
+
+O workflow principal é:
+
+```text
+.github/workflows/playwright.yml
+```
+
+Execuções simultâneas são serializadas para evitar duas automações atuando sobre a mesma companhia ao mesmo tempo.
+
+---
+
+## Instalação
+
+### Requisitos
+
+- Node.js 22+
 - npm
 - Chromium compatível com Playwright
-- sistema operacional suportado pelo Playwright
+- ambiente suportado pelo Playwright
 - interface do Airline Manager 4 em **inglês**
 
-Instalação:
+### Clonar e instalar
 
 ```bash
 git clone https://github.com/andreypiekas/Airline-Manager-4-Automation.git
 cd Airline-Manager-4-Automation
+
 npm ci
 npx playwright install --with-deps chromium
 ```
 
-Validação offline:
+### Validar localmente
 
 ```bash
 npm run typecheck
@@ -114,43 +240,39 @@ node scripts/company-dashboard.cjs --self-test
 npm test
 ```
 
-Esses comandos não precisam das credenciais do jogo.
+Essas validações são offline e não precisam acessar a conta do jogo.
+
+---
 
 ## Configuração no GitHub
 
-A configuração fica em **Settings → Secrets and variables → Actions**.
+Abra:
 
-### Secrets
+**Repository → Settings → Secrets and variables → Actions**
 
-| Secret | Obrigatório | Uso |
-| --- | --- | --- |
-| `EMAIL` | Sim | Login web do Airline Manager 4 |
-| `PASSWORD` | Sim | Senha da conta do jogo |
-| `TELEGRAM_BOT_TOKEN` | Não | Token do bot criado no BotFather |
-| `TELEGRAM_CHAT_ID` | Não | ID da conversa privada ou grupo que recebe os resumos |
+### Secrets obrigatórios
 
-O `TELEGRAM_CHAT_ID` é o ID da **conversa**, não o ID do próprio bot.
+| Secret | Descrição |
+| --- | --- |
+| `EMAIL` | E-mail da conta utilizada no AM4 |
+| `PASSWORD` | Senha da conta |
 
-### Inputs do workflow principal
+### Telegram opcional
 
-| Input | Padrão | Descrição |
-| --- | --- | --- |
-| `departure_mode` | `production` | `production` executa módulos autorizados; `simulation` força modo de leitura/simulação |
-| `execute_individual` | `true` | Compatibilidade com versões anteriores |
-| `max_individual_departures` | `0` | `0` usa a Variable; 1–20 sobrescreve |
-| `aktifkan_random_delay` | `false` | Atraso aleatório opcional |
-| `paksa_simpan_video` | `false` | Compatibilidade de diagnóstico; mantenha desligado normalmente |
+| Secret | Descrição |
+| --- | --- |
+| `TELEGRAM_BOT_TOKEN` | Token do bot |
+| `TELEGRAM_CHAT_ID` | ID da conversa ou grupo de destino |
 
-Inputs numéricos do GitHub podem chegar como `0.0` ou `2.0`. O resolvedor aceita somente representações equivalentes a inteiros e rejeita frações ou notação exponencial.
+> `TELEGRAM_CHAT_ID` deve ser o ID da conversa, não o ID do próprio bot.
 
-### Variables principais
-
-Configuração recomendada:
+### Variables recomendadas
 
 ```text
 RETURN_JOURNAL_SCOPE=am4-prod
 
 MAX_INDIVIDUAL_DEPARTURES=20
+
 MIN_DEMAND_PERCENTAGE=80
 DEMAND_THRESHOLD_MODE=aggregate
 DEMAND_POOL_SCOPE=airport-pair
@@ -163,6 +285,7 @@ MIN_CASH_RESERVE=0
 ENABLE_ROUTE_RESEARCH=true
 ROUTE_RESEARCH_MAX_AIRCRAFT=3
 ROUTE_RESEARCH_MAX_SUGGESTIONS=5
+
 ENABLE_ROUTE_OPTIMIZER=true
 ENABLE_ROUTE_EXECUTION=true
 ROUTE_MAX_REROUTES_PER_RUN=1
@@ -172,170 +295,39 @@ ENABLE_TICKET_PRICING_EXECUTION=true
 TICKET_PRICING_MAX_ADJUSTMENTS_PER_RUN=5
 ```
 
-A lista completa, defaults, limites e exemplos está em [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+A referência completa está em [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
-## Descoberta automática de bases
+---
 
-O bot **não depende de uma lista fixa de bases** para a operação normal. Em cada execução autenticada ele consulta, em modo somente leitura, a página nativa `research_main.php` e extrai o seletor `#hubSelect`, que representa os hubs/bases pertencentes à companhia.
+## Execução
 
-Os IDs nativos retornados pelo jogo são cruzados com `data/reference/airports.json` para obter o IATA de forma determinística. A lista live só é aceita quando **todos** os hubs observados resolvem de forma única; caso contrário, o bot usa o fallback configurado e não inventa uma base.
+O workflow suporta dois modos principais.
 
-Validação live em 05/10/2026:
+### Production
 
-```text
-2926 → XAP → Chapecó
-2947 → GRU → São Paulo Guarulhos
-1275 → DTW → Detroit Metropolitan
-465  → TXL → Berlin Tegel
-```
-
-Se uma nova base for comprada no AM4 e seu airport ID existir no catálogo de aeroportos do sistema, ela será incorporada automaticamente na próxima execução, sem editar o código ou `AIRLINE_BASES_JSON`.
-
-`AIRLINE_BASES_JSON` permanece apenas como **fallback conservador** quando a lista live não pode ser comprovada.
-
-**Importante:** essa lista de hubs não limita mais as decolagens. O executor de uma rota já existente é base-agnostic e pode processar qualquer aeronave pronta em qualquer aeroporto observado na frota, desde que demanda, identidade, controle nativo, recursos e confirmação estejam válidos. A noção de base própria permanece apenas nas funções que realmente dependem dela, como route review/reroute.
-
-## Demand Manager
-
-A decisão de decolagem considera, entre outros fatores:
-
-- identidade única da aeronave e da rota;
-- estado atual;
-- capacidade Y/J/F;
-- demanda restante por classe;
-- freshness da observação;
-- pool conservador de demanda;
-- reservas entre aeronaves;
-- threshold configurado e adaptativo;
-- contexto operacional da rota existente;
-- evidência de estoque de combustível;
-- quarentenas persistentes;
-- orçamento de tempo.
-
-Padrões:
+Executa as operações autorizadas pelos módulos e gates de segurança.
 
 ```text
-MIN_DEMAND_PERCENTAGE=80
-DEMAND_THRESHOLD_MODE=aggregate
-DEMAND_POOL_SCOPE=airport-pair
-DEMAND_MAX_AGE_SECONDS=300
+departure_mode=production
 ```
 
-O threshold adaptativo pode **aumentar** o piso depois de histórico verificado suficiente; nunca reduz o piso configurado com evidência fraca.
+### Simulation
 
-## Pricing PAX
-
-O cálculo parte do **Auto Price nativo** observado na rota:
+Mantém as principais mutações desativadas para inspeção controlada.
 
 ```text
-Y = Auto × 1,10
-J = Auto × 1,08
-F = Auto × 1,06
+departure_mode=simulation
 ```
 
-O resultado é truncado para múltiplo de 10.
+> Uma run marcada como `success` significa que o workflow terminou de forma consistente. Não significa necessariamente que houve decolagens, compras, alterações de preço ou reroutes. Uma decisão de `HOLD` pode ser exatamente o resultado esperado.
 
-Fluxo seguro:
+---
 
-- preço já correto → `ALREADY_AT_TARGET`;
-- Save somente em contexto de produção autorizado;
-- limite de ajustes por run;
-- releitura fresca depois do Save;
-- resultado não confirmado → quarentena persistente, sem retry automático.
+## Agendamento externo
 
-## Revisão de rotas e reroute
+O workflow operacional usa `workflow_dispatch` e não depende de um schedule interno.
 
-A revisão pode ocorrer:
-
-- após retorno confirmado à própria base; ou
-- uma vez ao dia quando a aeronave é observada em solo na própria base e ainda não possui revisão concluída naquele dia.
-
-A análise pode produzir `KEEP`, `HOLD` ou uma candidata a `REROUTE`. Uma mutação real só é autorizada quando o conjunto comparado é suficientemente verificado, o alvo nativo continua fresco e a superioridade econômica conservadora foi demonstrada.
-
-Sugestões limitadas nunca são tratadas como prova da melhor rota global.
-
-## Fuel e CO₂
-
-O módulo usa preço **ao vivo** da interface.
-
-Padrões:
-
-```text
-MAX_FUEL_PRICE=550
-MAX_CO2_PRICE=120
-MIN_CASH_RESERVE=0
-```
-
-A compra exige preço estritamente abaixo do teto. O histórico verificado pode apertar o teto efetivo, mas nunca aumentá-lo.
-
-Após a tentativa, o bot relê estoque, capacidade e pagamento. Resultado inconclusivo entra em quarentena e não é repetido automaticamente.
-
-## Manutenção e campanhas
-
-Principais parâmetros:
-
-```text
-REPAIR_WEAR=30
-HOURS_CHECK=20
-INCREASE_AIRLINE_REPUTATION=true
-CAMPAIGN_TYPE=1
-CAMPAIGN_DURATION=4
-```
-
-Os controles nativos precisam ser validados antes das operações.
-
-## Estado persistente
-
-O journal operacional é mantido na branch:
-
-```text
-am4-runtime-state
-```
-
-Arquivo por scope:
-
-```text
-return-journal-<scope>.json
-```
-
-Ele registra revisões, decolagens confirmadas, chegadas observadas, Flight History, HOLDs, supplies, UI Health e mutações incertas. Quarentenas persistentes não devem ser apagadas apenas para liberar uma nova tentativa.
-
-## Relatórios
-
-Cada produção gera:
-
-- **GITHUB_STEP_SUMMARY** — painel executivo curto;
-- artifact **demand-report** — JSON/Markdown detalhados;
-- artifact **playwright-report** — logs técnicos permitidos.
-
-O painel executivo mostra frota, demanda, decolagens, pricing, rotas, supplies, manutenção, campanhas, UI Health, orçamento de tempo, estados operacionais e quarentenas. Os relatórios detalhados permanecem fora do Summary para evitar duplicação.
-
-Veja [docs/REPORTS_AND_TELEGRAM.md](docs/REPORTS_AND_TELEGRAM.md).
-
-## Telegram
-
-Com `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID`, o workflow envia um resumo agregado ao final de cada run.
-
-Formato:
-
-```text
-✈️ AM4 • SUCESSO • run #123
-Bases: XAP, GRU, DTW, TXL • live
-Frota: 34 | voo 30 | prontas 4
-Demanda: 3/4 suficientes | insuf. 1 | indispon. 0
-Decolagens: 2/4 confirmadas | retidas 2 | incertas 0
-Pricing: 0 ajustadas | 4 no alvo | incertas 0
-Rotas: 0 reroutes | revisão KEEP 0 / HOLD 2 / candidato 0
-Suprimentos: Fuel: purchased • 540/1k • qtd 4,575,933 | CO₂: skipped
-Segurança: quarentenas D3 R0 P0 S1 | UI healthy
-Run: https://github.com/...
-```
-
-O Telegram não envia aircraftId, matrícula, saldo, credenciais, cookies ou HTML.
-
-## Agendamento externo com cron-job.org
-
-O workflow operacional **não possui schedule interno**. O agendamento recomendado é externo, por exemplo a cada 30 minutos.
+Isso permite acionamento manual ou por um serviço externo, como **cron-job.org**.
 
 Endpoint:
 
@@ -343,16 +335,7 @@ Endpoint:
 POST https://api.github.com/repos/andreypiekas/Airline-Manager-4-Automation/actions/workflows/playwright.yml/dispatches
 ```
 
-Headers:
-
-```text
-Accept: application/vnd.github+json
-Authorization: Bearer SEU_TOKEN_GITHUB
-X-GitHub-Api-Version: 2022-11-28
-Content-Type: application/json
-```
-
-Body mínimo recomendado:
+Body:
 
 ```json
 {
@@ -360,53 +343,136 @@ Body mínimo recomendado:
 }
 ```
 
-Use Fine-grained PAT restrito a este repositório com **Actions: Read and write**. Uma resposta HTTP 2xx confirma que o GitHub aceitou o dispatch; não confirma operações no jogo.
+Para automação externa, use um **Fine-grained Personal Access Token** limitado ao repositório e com a permissão mínima necessária para executar GitHub Actions.
 
-## Estrutura do repositório
+Veja [AUTOMACAO.md](AUTOMACAO.md) para o guia operacional.
+
+---
+
+## Estado persistente
+
+O bot mantém histórico operacional separado do código.
+
+Branch padrão:
 
 ```text
-.github/workflows/     GitHub Actions
-data/reference/        referências estáticas
-demand/                demanda e decolagens
-optimization/          route review, economia, histórico e journal
-pricing/               pricing PAX
-supplies/              Fuel / CO₂
-scripts/               dashboard, Telegram e utilitários
-tests/live/            probes controlados
-tests/unit/            suíte offline
-utils/                 login, UI, manutenção e campanhas
-docs/                  documentação técnica
+am4-runtime-state
 ```
 
-## Troubleshooting rápido
+O journal registra, entre outras evidências:
 
-**Run verde, mas nada mudou no jogo:** consulte o Summary e `execution-report.md`. Todos os candidatos podem ter ficado em HOLD de forma correta.
+- decolagens confirmadas;
+- passageiros observados após a partida;
+- retornos/chegadas;
+- revisões de rota;
+- histórico de demanda;
+- Flight History observado;
+- HOLDs;
+- mutations incertas;
+- informações necessárias aos thresholds adaptativos.
 
-**Telegram 403 “bot can't send messages to the bot”:** o Chat ID é do próprio bot. Use o ID da conversa.
+Não é recomendado apagar quarentenas apenas para liberar uma nova tentativa.
 
-**Telegram sem updates:** envie `/start` ou outra mensagem ao bot antes de consultar `getUpdates`.
+---
 
-**Fuel não comprou:** confira preço live, teto efetivo, capacidade, caixa/reserva e quarentenas.
+## Dashboard e relatórios
 
-**CO₂ bloqueado:** consulte `supply-report.json`. Uma mutação anteriormente incerta permanece bloqueada até revisão segura.
+Cada execução pode produzir:
 
-**Run ignorada:** o HEAD mudou antes do acesso ao jogo e o guard de SHA bloqueou a execução antiga.
+- **GitHub Step Summary** com visão executiva;
+- `demand-report` com relatórios JSON/Markdown;
+- `playwright-report` com evidências técnicas;
+- estados operacionais consolidados;
+- relatórios de pricing, rotas e supplies;
+- resumo opcional via Telegram.
 
-**Reroute não ocorreu:** a comparação não atingiu os gates de segurança. Isso é comportamento esperado, não uma falha.
+O dashboard prioriza o que precisa de atenção em vez de repetir toda a frota em cada execução.
+
+---
+
+## Estrutura do projeto
+
+```text
+.github/workflows/   GitHub Actions
+data/reference/      catálogo e referências estáticas
+demand/              demanda e decolagens
+optimization/        rotas, economia, histórico e journal
+pricing/             pricing PAX
+supplies/            Fuel e CO₂
+scripts/             dashboard, estado e notificações
+tests/live/          probes controlados
+tests/unit/          suíte offline
+utils/               login e módulos operacionais
+docs/                documentação técnica
+```
+
+---
+
+## Troubleshooting
+
+**A run ficou verde, mas nenhum avião decolou**
+
+Isso pode ser normal. Consulte o Summary e `execution-report.md`. Demanda insuficiente, quarentena, falta de evidência ou limites operacionais podem resultar em `HOLD`.
+
+**Fuel não foi comprado**
+
+Verifique preço ao vivo, teto configurado, capacidade disponível, caixa mínimo e possíveis quarentenas.
+
+**Reroute não ocorreu**
+
+A comparação provavelmente não atingiu todos os gates necessários. O executor prefere manter a rota a executar uma troca sem evidência suficiente.
+
+**Telegram retorna erro 403**
+
+Confirme que `TELEGRAM_CHAT_ID` corresponde à conversa/grupo e que o bot já recebeu uma mensagem ou foi iniciado no destino.
+
+**Uma run antiga não acessou o jogo**
+
+O guard de SHA pode ter identificado que o código no `main` mudou enquanto aquela execução aguardava na fila.
+
+---
 
 ## Documentação
 
-- [Índice técnico](docs/README.md)
-- [Configuração completa](docs/CONFIGURATION.md)
-- [Relatórios e Telegram](docs/REPORTS_AND_TELEGRAM.md)
-- [Demand Manager](docs/DEMAND_MANAGER.md)
-- [Decolagens em produção](docs/PRODUCTION_DEPARTURES.md)
-- [Rotas e pricing](docs/ROUTES_AND_PRICING.md)
-- [Supplies](docs/SUPPLIES.md)
-- [Reservas e custos](docs/RESERVATIONS_AND_COSTS.md)
-- [Estado da implementação](docs/IMPLEMENTATION_STATUS.md)
-- [Migração](MIGRATION.md)
+| Documento | Conteúdo |
+| --- | --- |
+| [docs/README.md](docs/README.md) | Índice técnico |
+| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Secrets, Variables e limites |
+| [docs/DEMAND_MANAGER.md](docs/DEMAND_MANAGER.md) | Regras de demanda |
+| [docs/PRODUCTION_DEPARTURES.md](docs/PRODUCTION_DEPARTURES.md) | Executor de decolagens |
+| [docs/ROUTES_AND_PRICING.md](docs/ROUTES_AND_PRICING.md) | Route review, reroute e pricing |
+| [docs/SUPPLIES.md](docs/SUPPLIES.md) | Fuel e CO₂ |
+| [docs/RESERVATIONS_AND_COSTS.md](docs/RESERVATIONS_AND_COSTS.md) | Reservas e custos |
+| [docs/REPORTS_AND_TELEGRAM.md](docs/REPORTS_AND_TELEGRAM.md) | Dashboard, artifacts e Telegram |
+| [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) | Estado técnico atual |
+| [AUTOMACAO.md](AUTOMACAO.md) | Guia operacional |
+
+---
+
+## Contribuições
+
+Issues e pull requests são bem-vindos, especialmente para:
+
+- melhorar compatibilidade com alterações da UI do AM4;
+- ampliar testes de parsing e segurança;
+- melhorar observabilidade e relatórios;
+- tornar a documentação mais clara;
+- adicionar novos módulos sem enfraquecer os gates existentes.
+
+Mudanças operacionais devem manter o comportamento **fail-closed**.
+
+---
 
 ## Licença
 
-MIT. Os avisos de atribuição do projeto de origem permanecem no arquivo `LICENSE`.
+Distribuído sob a licença **MIT**.
+
+Os avisos e atribuições herdados do projeto de origem permanecem preservados em [LICENSE](LICENSE).
+
+---
+
+### Autor
+
+**Andrey Gheno Piekas**
+
+Projeto desenvolvido para experimentação, automação e estudo de operações no Airline Manager 4.
