@@ -4,11 +4,13 @@ import {join} from 'node:path';
 import {readFile} from 'node:fs/promises';
 import {appendUiHealthObservation,validateReturnJournal} from '../optimization/return-journal';
 import {closeReadOnlyPopup} from '../optimization/cost-reference-reader';
+import {assertNoInteractiveChallenge} from './challenge-guard';
 
 type Surface='login'|'fleet'|'maintenance'|'marketing'|'supplies';
 type Check={surface:Surface;status:'healthy'|'changed';expected:string;observed:string};
 const norm=(s:string)=>s.replace(/\s/g,'');
 export async function runInitialUiHealthCheck(page:Page,directory='test-results/demand',timeout=15000){
+ await assertNoInteractiveChallenge(page,'ui-health:start',directory);
  const checks:Check[]=[];const stateDir='.am4-state/github',scope=(process.env.RETURN_JOURNAL_SCOPE||'am4-prod').trim();let lastKnownHealthy:string|null=null;try{const prior=validateReturnJournal(JSON.parse(await readFile(join(stateDir,'return-journal.json'),'utf8')),scope,new Date());lastKnownHealthy=prior.uiHealthObservations?.at(-1)?.observedAt||null;}catch{}const add=(surface:Surface,ok:boolean,expected:string,observed:string)=>checks.push({surface,status:ok?'healthy':'changed',expected,observed});
  const save=async()=>{await mkdir(directory,{recursive:true});const changed=checks.filter(x=>x.status==='changed');const report={schemaVersion:1,generatedAt:new Date().toISOString(),status:changed.length?'UI_CHANGE_DETECTED':'healthy',mutationAuthorized:false,lastKnownHealthy,checks};
   await writeFile(join(directory,'ui-health.json'),JSON.stringify(report,null,2)+'\n');
@@ -19,5 +21,6 @@ export async function runInitialUiHealthCheck(page:Page,directory='test-results/
  await inspect('maintenance',async()=>{await closeReadOnlyPopup(page,timeout);const m=page.locator('div:nth-child(4) > #mapMaint > img');const control=await m.count()===1&&await m.isVisible();if(control){await m.click({timeout});await page.getByRole('button',{name:' Plan'}).waitFor({state:'visible',timeout});}const marker=await page.getByRole('button',{name:' Plan'}).isVisible().catch(()=>false);await closeReadOnlyPopup(page,timeout);return{ok:control&&marker,expected:'single visible maintenance menu + Plan marker',observed:`control=${control},marker=${marker}`};});
  await inspect('marketing',async()=>{await closeReadOnlyPopup(page,timeout);const m=page.locator('div:nth-child(5) > #mapMaint > img');const control=await m.count()===1&&await m.isVisible();if(control){await m.click({timeout});await page.getByRole('button',{name:' Marketing'}).waitFor({state:'visible',timeout});}const marker=await page.getByRole('button',{name:' Marketing'}).isVisible().catch(()=>false);await closeReadOnlyPopup(page,timeout);return{ok:control&&marker,expected:'single visible marketing menu + Marketing marker',observed:`control=${control},marker=${marker}`};});
  await inspect('supplies',async()=>{await closeReadOnlyPopup(page,timeout);const m=page.locator('#smallMainMenu').getByText('Fuel',{exact:true}).locator('../..'),cb=await m.getAttribute('onclick')||'',expected="hideAllWhenClick();popup('fuel.php','Fuel',false,false,true);";const control=await m.count()===1&&await m.isVisible()&&norm(cb)===norm(expected);if(control){await m.click({timeout});await page.locator('#fuelMain').getByText('Current price',{exact:true}).waitFor({state:'visible',timeout});}const marker=await page.locator('#fuelMain').getByText('Current price',{exact:true}).isVisible().catch(()=>false);await closeReadOnlyPopup(page,timeout);return{ok:control&&marker,expected:'verified Fuel callback + Current price marker',observed:`control=${control},marker=${marker}`};});
+ await assertNoInteractiveChallenge(page,'ui-health:complete',directory);
  const report=await save();if(report.status!=='healthy')throw new Error('UI_CHANGE_DETECTED');try{await appendUiHealthObservation(stateDir,scope,report.generatedAt,checks.map(x=>x.surface));}catch{}return report;
 }
