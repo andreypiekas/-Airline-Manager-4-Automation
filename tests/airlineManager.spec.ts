@@ -11,6 +11,7 @@ import { withRunLock } from '../utils/run-lock';
 import { loginForReadOnlyCollection } from '../utils/read-only-login';
 import { runInitialUiHealthCheck } from '../utils/ui-health';
 import { evaluateRunPhaseBudget, MUTATION_PHASE_START_MINIMUM_MS } from '../utils/run-time-budget';
+import { writeSemiAutomaticSummary } from '../utils/semi-automatic';
 import { test } from '@playwright/test';
 import { GeneralUtils } from '../utils/general.utils';
 import { FuelUtils } from '../utils/fuel.utils';
@@ -137,7 +138,7 @@ test('All Operations', async ({ page }) => {
       // Fecha paineis laterais comuns sem depender de um ponto fixo.
       const x = Math.floor(Math.random() * 401) + 200;
       const y = Math.floor(Math.random() * 16) + 15;
-      await GeneralUtils.humanMouseMove(page, x, y);
+      await GeneralUtils.movePointer(page, x, y);
       await GeneralUtils.randomSleep(120, 300);
       await page.mouse.down();
       await GeneralUtils.randomSleep(70, 160);
@@ -259,6 +260,10 @@ test('All Operations', async ({ page }) => {
       throw new Error('[Demand] Fleet/Routes nao abriu apos recuperacao da interface.');
     }
     const simulation = await runDemandSimulationDetailed(page, demandConfig);
+    if (process.env.AUTOMATION_MODE === 'semi-automatic') {
+      await writeSemiAutomaticSummary(simulation);
+      console.log('[SemiAutomatic] Analise concluida. Nenhuma mutacao no jogo foi autorizada; execucao real exige confirmacao manual.');
+    }
     if (!demandConfig.dryRun && moduleEnabled('ENABLE_ROUTE_EXECUTION', false)
       && phaseAllowed('route-execution',phaseBudgetsMs.routeExecution)) {
       await test.step('Reroute conservador por aeronave', async () => await runRouteExecution(page, simulation,{...process.env,ROUTE_EXECUTION_MUTATION_DEADLINE_EPOCH_MS:String(phaseDeadlineEpochMs)}));
@@ -273,7 +278,7 @@ test('All Operations', async ({ page }) => {
     }
     return;
   }
-  // Timeout 3 menit karena simulasi gerakan kursor dan delay manusia butuh waktu lebih lama
+  // Timeout ampliado para navegacao e atualizacoes assíncronas da interface.
   test.setTimeout(600000);
 
   // ==============================================================
@@ -325,16 +330,16 @@ test('All Operations', async ({ page }) => {
     const randomX = Math.floor(Math.random() * (600 - 200 + 1) + 200);
     const randomY = Math.floor(Math.random() * (30 - 15 + 1) + 15);
     
-    // Gunakan fungsi mouse melengkung dari GeneralUtils
-    await GeneralUtils.humanMouseMove(page, randomX, randomY);
-    await GeneralUtils.randomSleep(150, 400); // Jeda sesaat ancang-ancang sebelum ketuk layar
+    // Move o ponteiro antes de clicar fora do painel.
+    await GeneralUtils.movePointer(page, randomX, randomY);
+    await GeneralUtils.randomSleep(150, 400); // Aguarda estabilizacao do painel.
     
     await page.mouse.down();
-    await GeneralUtils.randomSleep(80, 180); // Durasi tahan klik bervariasi
+    await GeneralUtils.randomSleep(80, 180); // Pequena espera de estabilidade.
     await page.mouse.up();
   };
 
-  // Kumpulan lokator ubin menu utama di peta untuk pancingan anti-freeze
+  // Controles principais usados na recuperacao de interface.
   const menuTiles: Record<string, import('@playwright/test').Locator> = {
     fuel: page.locator('#mapMaint > img').first(),
     maintenance: page.locator('div:nth-child(4) > #mapMaint > img'),
@@ -342,7 +347,7 @@ test('All Operations', async ({ page }) => {
     depart: page.locator('#mapRoutes').getByRole('img')
   };
 
-  // Fungsi pembantu untuk membuka-tutup menu lain secara acak jika modul utama freeze/lag
+  // Recupera a interface abrindo e fechando outro menu quando o painel nao responde.
   const triggerRandomMenuPoke = async (currentMenuKey: string) => {
     const keys = Object.keys(menuTiles).filter(key => key !== currentMenuKey);
     const randomKey = keys[Math.floor(Math.random() * keys.length)];
@@ -351,7 +356,7 @@ test('All Operations', async ({ page }) => {
     await clickBlankSpaceTop();
     await GeneralUtils.randomSleep(1000, 1800);
     
-    // FIX KOREKSI 2: Upgrade klik ubin pancingan menjadi moveAndClick yang acak area amannya
+    // Usa o helper padrao de clique.
     await GeneralUtils.moveAndClick(page, menuTiles[randomKey]);
     await GeneralUtils.randomSleep(2000, 3500);
     
@@ -360,7 +365,7 @@ test('All Operations', async ({ page }) => {
     await GeneralUtils.randomSleep(1200, 2000);
   };
 
-  // 1. Login (Bypass Stealth & Keystroke Dynamics terpusat)
+  // 1. Login normal pela interface.
   await generalUtils.login(page);
   await GeneralUtils.randomSleep(5000, 8000);
 
@@ -371,7 +376,7 @@ test('All Operations', async ({ page }) => {
     const currentBalance = await fuelUtils.getCurrentBalance();
     console.log('[Operacao] Saldo antes de abrir combustivel: ' + currentBalance);
 
-    // FIX KOREKSI 3: Buka ubin menu Fuel dengan pergerakan kursor melengkung acak
+    // Abre o menu de Fuel pela interface.
     await GeneralUtils.moveAndClick(page, menuTiles.fuel);
     await GeneralUtils.randomSleep(2000, 4000);
 
@@ -392,7 +397,7 @@ test('All Operations', async ({ page }) => {
     await fuelUtils.buyFuel();
     await GeneralUtils.randomSleep(1500, 3000);
 
-    // FIX KOREKSI 4: Klik tab CO2 secara human-like
+    // Abre a aba de CO2 pela interface.
     const co2TabButton = page.getByRole('button', { name: ' Co2' });
     await GeneralUtils.moveAndClick(page, co2TabButton);
     await GeneralUtils.randomSleep(2000, 4000);
@@ -409,7 +414,7 @@ test('All Operations', async ({ page }) => {
     await clickBlankSpaceTop();
     await GeneralUtils.randomSleep(1000, 1800);
 
-    // FIX KOREKSI 5: Buka ubin menu Maintenance secara human-like
+    // Abre o menu de manutencao pela interface.
     await GeneralUtils.moveAndClick(page, menuTiles.maintenance);
 
     try {
@@ -439,7 +444,7 @@ test('All Operations', async ({ page }) => {
   const runCampaign = async (attempt = 1) => {
     console.log(`[Operacao] Iniciando campanhas antes das decolagens (tentativa ${attempt})...`);
     
-    // FIX KOREKSI 6: Buka ubin menu Kampanye secara human-like
+    // Abre o menu de campanhas pela interface.
     await GeneralUtils.moveAndClick(page, menuTiles.campaign);
     await GeneralUtils.randomSleep(2500, 4500);
 
@@ -488,10 +493,10 @@ test('All Operations', async ({ page }) => {
     await clickBlankSpaceTop();
   };
 
-  // ==================== LOGIKA PENGACAKAN SEMI-STATIS ====================
+  // ==================== ORDEM DOS MODULOS LEGADOS ====================
   const initialTasks = [runFuel, runMaintenance];
 
-  // Acak urutan antara Fuel atau Maintenance duluan
+  // Mantem compatibilidade com a ordem dinamica do fluxo legado.
   for (let i = initialTasks.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [initialTasks[i], initialTasks[j]] = [initialTasks[j], initialTasks[i]];
