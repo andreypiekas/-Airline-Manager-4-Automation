@@ -223,7 +223,7 @@ Execuções simultâneas são serializadas para evitar duas automações atuando
 
 ### Criar seu fork
 
-Para usar o bot na sua própria conta, faça primeiro um **fork** deste repositório no GitHub.
+Para usar o bot na sua própria conta, faça primeiro um **fork** deste repositório no GitHub. Na criação do fork, selecione **Copy the DEFAULT branch only**; o workflow criará o estado persistente próprio na primeira execução.
 
 Depois, se quiser trabalhar localmente, clone **o seu fork**:
 
@@ -361,11 +361,13 @@ Veja [docs/GITHUB_AND_CRON_SETUP.md](docs/GITHUB_AND_CRON_SETUP.md) para o passo
 
 O bot mantém histórico operacional separado do código.
 
-Branch padrão:
+Branch de runtime:
 
 ```text
 am4-runtime-state
 ```
+
+Em um fork novo ela é criada automaticamente com um journal vazio; não é necessário copiar a branch de runtime do repositório original.
 
 O journal registra, entre outras evidências:
 
