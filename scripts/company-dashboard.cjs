@@ -6,7 +6,8 @@ const safe=s=>String(s??'').replace(/[|\r\n<>]/g,' ');
 
 function build(dir='test-results/demand',logPath='test-results/bot.log',journalPath='.am4-state/github/return-journal.json'){
   const demand=read(dir,'demand-report.json'),fleet=read(dir,'fleet-observations.json'),execution=read(dir,'execution-report.json'),
-    routeExecution=read(dir,'route-execution.json'),candidateData=read(dir,'candidate-data.json'),supplies=read(dir,'supply-report.json'),pricing=read(dir,'pricing-execution.json'),modules=read(dir,'operational-modules.json'),\n    uiHealth=read(dir,'ui-health.json'),runBudget=read(dir,'run-time-budget.json');
+    routeExecution=read(dir,'route-execution.json'),candidateData=read(dir,'candidate-data.json'),supplies=read(dir,'supply-report.json'),pricing=read(dir,'pricing-execution.json'),modules=read(dir,'operational-modules.json'),
+    uiHealth=read(dir,'ui-health.json'),runBudget=read(dir,'run-time-budget.json');
   const log=(()=>{try{return fs.readFileSync(logPath,'utf8')}catch{return ''}})();
   const journal=readPath(journalPath),events=Array.isArray(journal?.events)?journal.events:[];
   const uncertainDepartureKeys=new Set(events.filter(x=>x?.type==='departure-uncertain').map(x=>x.aircraftId+':'+x.routeId));
