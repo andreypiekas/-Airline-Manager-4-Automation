@@ -391,7 +391,9 @@ export async function collectCandidateData(
       currentRouteGrossRevenueCeiling(currentQuote,aircraft.capacity,aircraft.fares?.current||null,currentReverseEquivalent,now,reservationsConfig.maxAgeSeconds):null;
     const demandHold=demandHoldByAircraft.get(quote.aircraftId);
     const currentDemandHoldVerified=!!aircraft&&!!demandHold&&demandHold.routeId===aircraft.routeId&&
-      demandHold.from===aircraft.from&&demandHold.to===aircraft.to;
+      demandHold.from===aircraft.from&&demandHold.to===aircraft.to&&freshAt(demandHold.observedAt,now)&&
+      Number.isFinite(demandHold.occupancyPercentage)&&Number.isFinite(demandHold.thresholdPercentage)&&
+      demandHold.occupancyPercentage<demandHold.thresholdPercentage;
     const variableCycleComparison=compareRouteVariableCycles(
       currentVariableCycle,candidateVariableCycle,0,currentGrossRevenueCeiling,currentDemandHoldVerified
     );
