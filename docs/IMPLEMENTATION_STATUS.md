@@ -14,7 +14,7 @@ Resumo técnico da branch `main`.
 | Fuel | Produção |
 | CO₂ | Produção com fail-safe/quarentena |
 | Manutenção / A-check / reparos | Produção |
-| Campanhas | Produção |
+| Campanhas | Produção, confirmação pós-compra e gate pré-departure |
 | Pricing PAX | Produção |
 | Route research | Produção em leitura |
 | Route review | Produção |
@@ -72,6 +72,7 @@ Fuel e CO₂ dependem do preço live. Referências externas não autorizam compr
 - journal persistente;
 - no-retry após mutação incerta;
 - confirmação pós-clique/pós-Save;
+- confirmação fresca de campanhas obrigatórias antes de departure;
 - preço live para supplies;
 - orçamento de tempo;
 - limites de mutações por run;
