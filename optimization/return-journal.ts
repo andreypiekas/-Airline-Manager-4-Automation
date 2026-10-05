@@ -223,7 +223,22 @@ const validUncertainSupplyEvent=(v:unknown,now:Date):v is UncertainSupplyEvent=>
 const validUncertainRouteEvent=(v:unknown,now:Date):v is UncertainRouteEvent=>{if(!v||typeof v!=='object')return false;const x=v as UncertainRouteEvent;return Object.keys(x).sort().join(',')==='aircraftId,eventId,observedAt,previousFrom,previousRouteId,previousTo,reason,registration,result,sourceRunId,targetAirportId,targetFrom,targetTo,type'&&validId(x.eventId)&&x.type==='route-uncertain'&&validId(x.aircraftId)&&typeof x.registration==='string'&&x.registration.length>0&&x.registration.length<=100&&validId(x.previousRouteId)&&validOrigin(x.previousFrom)&&validOrigin(x.previousTo)&&x.previousFrom!==x.previousTo&&validOrigin(x.targetFrom)&&validOrigin(x.targetTo)&&x.targetFrom!==x.targetTo&&validId(x.targetAirportId)&&typeof x.observedAt==='string'&&Number.isFinite(Date.parse(x.observedAt))&&Date.parse(x.observedAt)<=now.getTime()&&x.result==='outcome_unknown'&&x.reason==='NO_RETRY_AFTER_ROUTE_MUTATION_ATTEMPT'&&validId(x.sourceRunId);};
 const validUncertainPricingEvent=(v:unknown,now:Date):v is UncertainPricingEvent=>{if(!v||typeof v!=='object')return false;const x=v as UncertainPricingEvent;return Object.keys(x).sort().join(',')==='aircraftId,before,desired,eventId,observedAt,reason,registration,result,routeId,sourceRunId,type'&&validId(x.eventId)&&x.type==='pricing-uncertain'&&validId(x.aircraftId)&&typeof x.registration==='string'&&x.registration.length>0&&x.registration.length<=100&&validId(x.routeId)&&typeof x.observedAt==='string'&&Number.isFinite(Date.parse(x.observedAt))&&Date.parse(x.observedAt)<=now.getTime()&&x.result==='outcome_unknown'&&x.reason==='NO_RETRY_AFTER_PRICE_SAVE_ATTEMPT'&&validId(x.sourceRunId)&&validCabins(x.before)&&validCabins(x.desired);};
 const validArrivalObservationEvent=(v:unknown,now:Date):v is ArrivalObservationEvent=>{if(!v||typeof v!=='object')return false;const x=v as ArrivalObservationEvent;const departed=Date.parse(x.departedAt),observed=Date.parse(x.observedAt);return Object.keys(x).sort().join(',')==='aircraftId,departedAt,departureEventId,eventId,from,observedAt,registration,result,routeId,to,type'&&validId(x.eventId)&&x.type==='arrival-observed'&&validId(x.departureEventId)&&validId(x.aircraftId)&&typeof x.registration==='string'&&x.registration.length>0&&x.registration.length<=100&&validId(x.routeId)&&validOrigin(x.from)&&validOrigin(x.to)&&x.from!==x.to&&typeof x.departedAt==='string'&&typeof x.observedAt==='string'&&Number.isFinite(departed)&&Number.isFinite(observed)&&departed<observed&&observed<=now.getTime()&&x.result==='arrived_observed';};
-export function unresolvedSupplyKinds(journal:Journal):ReadonlySet<'fuel'|'co2'>{return new Set((journal.events||[]).filter((e):e is UncertainSupplyEvent=>e.type==='supply-uncertain').map(e=>e.kind));}
+export function unresolvedSupplyKinds(journal:Journal):ReadonlySet<'fuel'|'co2'>{
+  const unresolved=new Set<'fuel'|'co2'>();
+  for(const kind of ['fuel','co2'] as const){
+    const latestUncertain=Math.max(0,...(journal.events||[])
+      .filter((e):e is UncertainSupplyEvent=>e.type==='supply-uncertain'&&e.kind===kind)
+      .map(e=>Date.parse(e.observedAt)||0));
+    if(!latestUncertain)continue;
+    const latestVerifiedSnapshot=Math.max(0,...(journal.supplyObservations||[])
+      .filter(e=>e.kind===kind)
+      .map(e=>Date.parse(e.observedAt)||0));
+    // A strictly newer verified inventory snapshot reconciles the previous unknown outcome.
+    // The uncertain event is intentionally retained for audit; only its blocking state is resolved.
+    if(latestVerifiedSnapshot<=latestUncertain)unresolved.add(kind);
+  }
+  return unresolved;
+}
 export async function readUnresolvedSupplyKinds(directory:string,scope:string,now=new Date()):Promise<ReadonlySet<'fuel'|'co2'>>{return unresolvedSupplyKinds(validateReturnJournal(JSON.parse(await readFile(join(directory,'return-journal.json'),'utf8')),scope,now));}
 export function unresolvedRouteAircraftIds(journal:Journal):ReadonlySet<string>{return new Set((journal.events||[]).filter((e):e is UncertainRouteEvent=>e.type==='route-uncertain').map(e=>e.aircraftId));}
 export async function readUnresolvedRouteAircraftIds(directory:string,scope:string,now=new Date()):Promise<ReadonlySet<string>>{return unresolvedRouteAircraftIds(validateReturnJournal(JSON.parse(await readFile(join(directory,'return-journal.json'),'utf8')),scope,now));}
