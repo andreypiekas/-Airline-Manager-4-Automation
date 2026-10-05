@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { test, expect, Page } from '@playwright/test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AircraftSnapshot, CollectionResult } from '../../demand/types';
+import { AircraftSnapshot, CollectionResult, DemandReport } from '../../demand/types';
 import { optimizationConfig } from '../../optimization/report';
 import { researchConfig, researchFleetCandidates, researchQueueRotation, writeRouteResearchReport } from '../../optimization/research-reader';
 
@@ -16,6 +16,21 @@ function snapshot(): AircraftSnapshot {
 const settings = optimizationConfig({AIRLINE_BASES_JSON:'["AAA"]'});
 const config = {...researchConfig({ENABLE_ROUTE_RESEARCH:'true'}),timeout:300};
 function collection(a = snapshot()): CollectionResult {return {aircraft:[a],complete:true,expectedRoutes:1,warnings:[]};}
+
+function insufficientDemand(a=snapshot(),occupancyPercentage=10):DemandReport{
+  return {
+    schemaVersion:1,generatedAt:TEST_NOW.toISOString(),dryRun:true,
+    config:{enabled:true,dryRun:true,failSafe:true,minPercentage:80,mode:'aggregate',poolScope:'airport-pair',maxAgeSeconds:300},
+    collectionComplete:true,warnings:[],
+    summary:{fleetSeen:1,evaluated:1,sufficient:0,insufficient:1,unavailable:0,notReady:0},
+    decisions:[{
+      ...a,poolKey:[a.from,a.to].sort().join(':'),decision:'hold_insufficient',reason:'synthetic insufficient demand',
+      availableBefore:{Y:10,J:0,F:0},possiblePassengers:{Y:10,J:0,F:0},occupancyPercentage,
+      classOccupancy:{Y:occupancyPercentage,J:null,F:null},requiredPassengers:80,requiredByClass:{Y:80,J:0,F:0},
+      thresholdPercentage:80,thresholdSource:'configured-floor',departureAuthorized:false
+    }]
+  };
+}
 
 async function fixture(page:Page, options: Record<string,boolean> = {}) {
   await page.route('**/*',r=>r.abort());
@@ -116,6 +131,67 @@ test('completed daily review is skipped before consuming the bounded research sl
     expect(await page.evaluate(()=>(window as any).researches)).toBe(0);
     expect(await page.evaluate(()=>(window as any).mutations)).toBe(0);
   }finally{await rm(dir,{recursive:true,force:true});}
+});
+
+
+test('insufficient demand reopens route research even after the daily review was already completed',async({page})=>{
+  await fixture(page);
+  const dir=await mkdtemp(join(tmpdir(),'am4-research-demand-trigger-'));
+  try{
+    await writeFile(join(dir,'return-journal.json'),JSON.stringify({
+      schemaVersion:1,scope:'test-scope',entries:[{
+        aircraftId:'101',origin:'AAA',flightId:'daily_test',reviewedAt:TEST_NOW.toISOString(),decision:'keep_route'
+      }]
+    })+'\n');
+    const withJournal={...settings,returnJournal:{directory:dir,scope:'test-scope'}};
+    const r=await researchFleetCandidates(
+      page,collection(),withJournal,{...config,maxAircraft:1,maxSuggestions:1},TEST_NOW,insufficientDemand()
+    );
+    expect(r.aircraft[0]).toMatchObject({
+      aircraftId:'101',status:'observed',trigger:'demand_insufficient',researchOrigin:'AAA',demandOccupancyPercentage:10
+    });
+    expect(r.queueRotation).toMatchObject({demandTriggeredEligible:1,scheduledEligible:0});
+    expect(await page.evaluate(()=>(window as any).researches)).toBe(1);
+    expect(await page.evaluate(()=>(window as any).mutations)).toBe(0);
+  }finally{await rm(dir,{recursive:true,force:true});}
+});
+
+test('insufficient-demand aircraft has priority over the scheduled research queue',async({page})=>{
+  await fixture(page);
+  const a=snapshot(),b={...snapshot(),aircraftId:'102',routeId:'2',registration:'SYNTHETIC-2'};
+  const data:CollectionResult={aircraft:[a,b],complete:true,expectedRoutes:2,warnings:[]};
+  const demand=insufficientDemand(a,0);
+  const r=await researchFleetCandidates(page,data,settings,{...config,maxAircraft:1,maxSuggestions:1},TEST_NOW,demand);
+  expect(r.aircraft.find(x=>x.aircraftId==='101')).toMatchObject({trigger:'demand_insufficient',status:'observed'});
+  expect(r.aircraft.find(x=>x.aircraftId==='102')?.status).toBe('deferred_limit');
+  expect(await page.evaluate(()=>(window as any).researches)).toBe(1);
+  expect(await page.evaluate(()=>(window as any).mutations)).toBe(0);
+});
+
+test('insufficient demand may research safely from the current airport even away from the operational hub',async({page})=>{
+  await fixture(page);
+  await page.evaluate(()=>{
+    const originalDetails=(window as any).details;
+    (window as any).details=()=>{
+      originalDetails();
+      const codes=document.querySelectorAll('#detailsAction .col-5 .l-text');
+      if(codes.length===2){codes[0].textContent='BBB';codes[1].textContent='AAA';}
+    };
+    const originalQuote=(window as any).quote;
+    (window as any).quote=()=>{
+      originalQuote();
+      const codes=document.querySelectorAll('#newRouteInfo .col-3.m-text > b');
+      if(codes.length===2)codes[0].textContent='BBB';
+    };
+  });
+  const a={...snapshot(),from:'BBB',to:'AAA',routeLabel:'BBB-AAA'};
+  const demand=insufficientDemand(a,5);
+  const r=await researchFleetCandidates(page,collection(a),settings,{...config,maxAircraft:1,maxSuggestions:1},TEST_NOW,demand);
+  expect(r.aircraft[0]).toMatchObject({
+    trigger:'demand_insufficient',researchOrigin:'BBB',status:'observed'
+  });
+  expect(r.aircraft[0].result?.quotes[0]).toMatchObject({from:'BBB',to:'CCC'});
+  expect(await page.evaluate(()=>(window as any).mutations)).toBe(0);
 });
 
 test('unavailable persistent review journal fails route research closed before navigation',async({page})=>{
