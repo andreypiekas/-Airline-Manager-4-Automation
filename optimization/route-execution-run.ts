@@ -30,7 +30,7 @@ export function routeExecutionSettings(env:NodeJS.ProcessEnv=process.env):RouteE
   const enabled=raw==='true';
   if(enabled&&(
     env.ROUTE_EXECUTION_ACK!=='native-direct-reroute-v1'||
-    env.GITHUB_ACTIONS!=='true'||env.GITHUB_REPOSITORY!=='andreypiekas/Airline-Manager-4-Automation'||
+    env.GITHUB_ACTIONS!=='true'||!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.GITHUB_REPOSITORY||'')||
     !/^[1-9]\d*$/.test(env.GITHUB_RUN_ID||'')||env.GITHUB_RUN_ATTEMPT!=='1'||
     (env.DEMAND_DRY_RUN||'').trim().toLowerCase()!=='false'||
     (env.ENABLE_ROUTE_OPTIMIZER||'true').trim().toLowerCase()!=='true'
