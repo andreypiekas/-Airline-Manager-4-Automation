@@ -32,6 +32,19 @@ test('semi-automatic Telegram summary is concise and requires manual execution',
  }
 });
 
+test('safe maintenance HOLD becomes an explicit Telegram alert without implying mutation',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'am4-telegram-maint-hold-'));
+ try{
+  await writeFile(join(dir,'operational-modules.json'),JSON.stringify({
+   schemaVersion:1,
+   maintenance:{status:'held_safe',evidence:{reason:'UI_CONTROL_OBSCURED',mutationAuthorized:false}}
+  }));
+  const text=importantMessage(dir,'success',join(dir,'missing-journal.json'));
+  expect(text).toContain('manutencao em HOLD seguro: UI_CONTROL_OBSCURED');
+  expect(text).not.toContain('executada');
+ }finally{await rm(dir,{recursive:true,force:true});}
+});
+
 test('challenge evidence becomes an explicit Telegram alert',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'am4-telegram-challenge-'));
  try{
