@@ -38,6 +38,8 @@ function importantMessage(dir='test-results/demand',botResult=process.env.BOT_RE
   if(supply?.halted===true)events.push('suprimentos interrompidos por fail-safe');
   const fuelHeld=(execution?.entries||[]).filter(x=>x?.status==='held'&&x?.reason==='FUEL_STOCK_INSUFFICIENT_BY_VERIFIED_HISTORY').length;
   if(fuelHeld>0)events.push('decolagens retidas por combustivel insuficiente verificado: '+fuelHeld);
+  const reroutePricingHeld=(execution?.entries||[]).filter(x=>x?.status==='held'&&x?.reason==='REROUTE_PRICING_NOT_VERIFIED').length;
+  if(reroutePricingHeld>0)events.push('aeronaves reroteadas aguardando pricing confirmado: '+reroutePricingHeld);
   const rerouted=route?.summary?.rerouted;
   if(Number.isSafeInteger(rerouted)&&rerouted>0)events.push('rotas alteradas e confirmadas: '+rerouted);
   if(Array.isArray(demand?.decisions)){
