@@ -14,7 +14,7 @@ for(const [name,value] of Object.entries({
  targetCode:handler.replace("'target'","'x');buyAircraft();Ajax('x'"),
  unsafeSelector:handler.replace('#panel, .flight-info','<script>'),
 }))test(`rejects handler: ${name}`,()=>expect(verifiedDepartureHandler(value,'123')).toBe(false));
-const realEnv={ENABLE_DEMAND_MANAGER:'true',DEMAND_FAIL_SAFE:'true',DEMAND_DRY_RUN:'false',DEMAND_EXECUTION_ACK:'individual-return-legs-v1',GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'andreypiekas/Airline-Manager-4',GITHUB_RUN_ID:'123',GITHUB_RUN_ATTEMPT:'1'};
+const realEnv={ENABLE_DEMAND_MANAGER:'true',DEMAND_FAIL_SAFE:'true',DEMAND_DRY_RUN:'false',DEMAND_EXECUTION_ACK:'individual-return-legs-v1',GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'andreypiekas/Airline-Manager-4-Automation',GITHUB_RUN_ID:'123',GITHUB_RUN_ATTEMPT:'1'};
 test('real mode needs acknowledgement and a first Actions attempt; analysis still cannot authorize',()=>{
  const config=readDemandConfig(realEnv);expect(config.dryRun).toBe(false);expect(executionEnvironment(config,realEnv)).toEqual({dryRun:false,maxDepartures:1});
 });
