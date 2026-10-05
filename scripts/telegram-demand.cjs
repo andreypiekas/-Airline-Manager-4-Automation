@@ -49,10 +49,27 @@ async function main() {
   await new Promise((resolve, reject) => {
     const req = https.request({ hostname: 'api.telegram.org', path: `/bot${token}/sendMessage`, method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }, timeout: 15000 }, res => {
-      res.resume(); res.on('end', () => res.statusCode === 200 ? resolve() : reject(new Error('Telegram failed')));
+      let raw = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { if (raw.length < 4096) raw += chunk; });
+      res.on('end', () => {
+        if (res.statusCode === 200) return resolve();
+        let description = '';
+        try {
+          const parsed = JSON.parse(raw);
+          if (typeof parsed.description === 'string') description = parsed.description.replace(/[\r\n\t]+/g, ' ').slice(0, 180);
+        } catch {}
+        reject(new Error(`Telegram API ${res.statusCode || 'erro'}${description ? ': '+description : ''}`));
+      });
     });
-    req.on('timeout', () => req.destroy(new Error('timeout'))); req.on('error', () => reject(new Error('Telegram failed'))); req.end(body);
+    req.on('timeout', () => req.destroy(new Error('Telegram timeout')));
+    req.on('error', error => reject(new Error(error?.message === 'Telegram timeout' ? 'Telegram timeout' : 'Telegram network error')));
+    req.end(body);
   });
 }
-if (require.main === module) main().catch(() => { console.error('[Demand] Nao foi possivel enviar o resumo Telegram.'); process.exitCode = 1; });
+if (require.main === module) main().catch(error => {
+  console.error('[Demand] '+String(error?.message || 'Telegram notification failed'));
+  console.log('::warning::Falha ao enviar notificacao Telegram; consulte o log seguro desta etapa.');
+  process.exitCode = 1;
+});
 module.exports = { message, importantMessage, runSummaryMessage };

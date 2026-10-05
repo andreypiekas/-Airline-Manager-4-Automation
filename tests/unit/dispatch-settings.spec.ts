@@ -10,6 +10,12 @@ test('exact reported repository configuration activates real mode and keeps its 
 test('absent settings default to simulation and one-flight limit',()=>expect(resolveDepartureSettings({})).toMatchObject({dryRun:true,maxDepartures:1}));
 test('cron with no new inputs inherits the repository activation and limit',()=>expect(resolveDepartureSettings({AM4_REPOSITORY_EXECUTE:'true',AM4_REPOSITORY_MAX_DEPARTURES:'3'})).toMatchObject({dryRun:false,maxDepartures:3}));
 test('default zero input does not shadow the repository limit',()=>expect(resolveDepartureSettings({AM4_INPUT_MAX_DEPARTURES:'0',AM4_REPOSITORY_MAX_DEPARTURES:'4'}).maxDepartures).toBe(4));
+test('GitHub numeric zero-point-zero input uses repository limit without weakening integer validation',()=>{
+ expect(resolveDepartureSettings({AM4_INPUT_MAX_DEPARTURES:'0.0',AM4_REPOSITORY_MAX_DEPARTURES:'20'})).toMatchObject({maxDepartures:20,limitSource:'variable:MAX_INDIVIDUAL_DEPARTURES'});
+ expect(resolveDepartureSettings({AM4_INPUT_MAX_DEPARTURES:'2.0',AM4_REPOSITORY_MAX_DEPARTURES:'4'})).toMatchObject({maxDepartures:2,limitSource:'input:limit'});
+ expect(()=>resolveDepartureSettings({AM4_INPUT_MAX_DEPARTURES:'1.5'})).toThrow();
+ expect(()=>resolveDepartureSettings({AM4_INPUT_MAX_DEPARTURES:'1e1'})).toThrow();
+});
 test('explicit positive input overrides repository limit',()=>expect(resolveDepartureSettings({AM4_INPUT_MAX_DEPARTURES:'2',AM4_REPOSITORY_MAX_DEPARTURES:'4'}).maxDepartures).toBe(2));
 test('repository zero limit falls back to safe default one',()=>expect(resolveDepartureSettings({AM4_REPOSITORY_MAX_DEPARTURES:'0'})).toMatchObject({maxDepartures:1,limitSource:'default:1'}));
 test('simulation override prevents operations even with both activation switches true',()=>expect(resolveDepartureSettings({AM4_INPUT_MODE:'simulation',AM4_INPUT_EXECUTE:'true',AM4_REPOSITORY_EXECUTE:'true'}).dryRun).toBe(true));
