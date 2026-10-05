@@ -35,6 +35,7 @@ O projeto automatiza rotinas repetitivas da companhia aérea com uma abordagem *
 | Threshold adaptativo de demanda | ✅ Produção |
 | Dashboard no GitHub Actions | ✅ Produção |
 | Notificações via Telegram | ✅ Produção |
+| Modo semiautomático com aprovação manual | ✅ Produção |
 | Compra automática de aeronaves | ❌ Fora do escopo |
 
 O estado técnico detalhado está em [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
@@ -164,6 +165,7 @@ A arquitetura foi construída em torno de alguns princípios:
 8. **Dados ausentes não viram zero** — valores econômicos ou operacionais desconhecidos permanecem desconhecidos.
 9. **Limites por execução** — mutations são limitadas para reduzir impacto de comportamento inesperado.
 10. **Orçamento de tempo** — nenhuma fase crítica começa quando não há janela suficiente para concluí-la com segurança.
+11. **Challenges não são contornados** — CAPTCHA ou verificação interativa interrompe a run sem tentativa de resolução.
 
 ---
 
@@ -288,6 +290,10 @@ departure_mode=production
 ### Simulation
 
 Mantém as principais mutações desativadas para inspeção controlada.
+
+### Semiautomático
+
+Quando habilitado pela configuração avançada, o bot apenas analisa o cenário e envia um resumo pelo Telegram. Operações reais exigem confirmação manual para aquela run.
 
 ```text
 departure_mode=simulation
