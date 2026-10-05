@@ -18,6 +18,8 @@ export interface ExecutionSettings {
   blockedDepartureKeys?: ReadonlySet<string>;
   /** Verified fuel holding observed in this same run. Used only to block unsafe clicks. */
   fuelHoldingLbsAtRunStart?: number;
+  /** False means required marketing campaigns were not freshly confirmed in this run. */
+  campaignVerified?: boolean;
 }
 export interface ExecutionEntry {
   aircraftId: string; registration: string; routeId: string; from: string; to: string;
@@ -108,6 +110,7 @@ export class IndividualDepartureExecutor {
         from:expected.from,to:expected.to,status:'held',reason:'DATA_UNAVAILABLE',demand:null,actualOnboard:null};
       report.entries.push(entry);
       if(report.halted){entry.reason='PREVIOUS_OUTCOME_UNKNOWN';continue;}
+      if(this.settings.campaignVerified===false){entry.reason='CAMPAIGN_NOT_VERIFIED';continue;}
       if(this.attemptedAircraft.has(expected.aircraftId)||this.attemptedRoutes.has(expected.routeId)){entry.reason='ALREADY_ATTEMPTED';continue;}
       if(this.settings.blockedDepartureKeys?.has(expected.aircraftId+':'+expected.routeId)){entry.reason='PERSISTED_UNCERTAIN_DEPARTURE_BLOCK';continue;}
       if(this.attemptedAircraft.size>=this.settings.maxDepartures){entry.reason='EXECUTION_LIMIT';continue;}
