@@ -12,9 +12,13 @@ on:
         type: boolean
         default: false
       max_departures:
-        description: 'Limite 1 a 20; 0 usa MAX_INDIVIDUAL_DEPARTURES (padrao 1)'
+        description: 'Limite 1 a 20; 0 usa MAX_INDIVIDUAL_DEPARTURES'
         type: number
         default: 0
+      confirm_semiautomatic_execution:
+        description: 'No modo semiautomatico, confirmar decolagens reais somente nesta run'
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -23,7 +27,7 @@ concurrency:
 jobs:
   depart:
     # Explicit manual/API invocation only. Never repeat a real run attempt.
-    if: github.repository == 'andreypiekas/Airline-Manager-4' && github.run_attempt == 1 && github.event_name == 'workflow_dispatch'
+    if: github.run_attempt == 1 && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-22.04
     timeout-minutes: 25
     steps:
@@ -50,6 +54,8 @@ jobs:
           AM4_INPUT_MAX_DEPARTURES: ${{ inputs.max_departures }}
           AM4_REPOSITORY_EXECUTE: ${{ vars.EXECUTE_INDIVIDUAL || 'true' }}
           AM4_REPOSITORY_MAX_DEPARTURES: ${{ vars.MAX_INDIVIDUAL_DEPARTURES || '20' }}
+          AM4_SEMI_AUTOMATIC: ${{ vars.SEMI_AUTOMATIC_MODE || 'false' }}
+          AM4_SEMI_CONFIRM: ${{ inputs.confirm_semiautomatic_execution && 'true' || 'false' }}
         run: node scripts/resolve-departure-settings.cjs
 
       - name: Executar somente o executor individual
