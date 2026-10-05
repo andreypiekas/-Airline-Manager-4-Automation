@@ -151,6 +151,20 @@ test('optional inflight inspection reads capacity and operational data without a
   expect(result.aircraft[1].issue).toBeUndefined();
   expect(await page.evaluate(() => (window as any).mutations)).toBe(0);
 });
+test('targeted aircraft re-read validates ready and inflight state without scanning the fleet',async({page})=>{
+ await fixture(page,{operational:true});
+ const reader=new DemandReader(page,500,true),initial=await reader.collect();
+ const ready=initial.aircraft.find(a=>a.aircraftId==='1101')!;
+ const inflight=initial.aircraft.find(a=>a.aircraftId==='1102')!;
+ const freshReady=await reader.readAircraftDetails(ready);
+ expect(freshReady).toMatchObject({aircraftId:'1101',routeId:'101',state:'ready',capacity:{Y:100,J:0,F:0}});
+ await page.locator('#route-name .glyphicons-chevron-left').click();
+ await expect(page.locator('#routeAction')).toBeVisible();
+ const freshInflight=await reader.readAircraftDetails(inflight);
+ expect(freshInflight).toMatchObject({aircraftId:'1102',routeId:'102',state:'inflight',onboard:{Y:40,J:0,F:0}});
+ expect(freshInflight.timing?.source).toBe('inspected-flight-countdown');
+ expect(await page.evaluate(()=>(window as any).mutations)).toBe(0);
+});
 
 test('unknown aircraft link callback is rejected before a click',async({page})=>{
  await fixture(page);await page.locator('#routeMainList101 a').evaluate(e=>e.setAttribute('onclick','window.mutations++'));
