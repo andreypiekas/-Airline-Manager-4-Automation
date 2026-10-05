@@ -7,7 +7,8 @@ A documentação está dividida entre **referência atual** e **histórico**.
 | Documento | Conteúdo |
 | --- | --- |
 | [GITHUB_AND_CRON_SETUP.md](GITHUB_AND_CRON_SETUP.md) | Instalação completa no GitHub e cron-job.org |
-| [CONFIGURATION.md](CONFIGURATION.md) | Secrets, inputs, Variables, defaults e limites |
+| [CONFIGURATION.md](CONFIGURATION.md) | Secrets e inputs do workflow |
+| [VARIABLES.md](VARIABLES.md) | Referência completa das Variables avançadas |
 | [DEMAND_MANAGER.md](DEMAND_MANAGER.md) | Demanda, pools, thresholds e decisão de departure |
 | [PRODUCTION_DEPARTURES.md](PRODUCTION_DEPARTURES.md) | Execução individual de decolagens |
 | [ROUTES_AND_PRICING.md](ROUTES_AND_PRICING.md) | Pricing PAX, route review e reroute |
@@ -30,6 +31,7 @@ Em caso de divergência, considere nesta ordem:
 
 1. código da branch `main`;
 2. [CONFIGURATION.md](CONFIGURATION.md);
-3. [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md);
-4. demais documentos atuais;
-5. conteúdo de [archive/](archive/).
+3. [VARIABLES.md](VARIABLES.md);
+4. [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md);
+5. demais documentos atuais;
+6. conteúdo de [archive/](archive/).
