@@ -11,6 +11,7 @@ O bot foi projetado para automatizar somente operações que consegue **observar
 | Área | Estado atual |
 | --- | --- |
 | Login e coleta da frota | Produção |
+| Descoberta automática de bases | Produção; leitura live dos hubs da conta |
 | Demand Manager | Produção |
 | Decolagens individuais | Produção, com confirmação fresca |
 | Fuel | Produção, compra com preço live e confirmação |
@@ -63,6 +64,8 @@ restauração do journal persistente
 resolução do modo e limite de decolagens
   ↓
 login + UI Health
+  ↓
+descoberta live de todas as bases/hubs da conta
   ↓
 Fuel / CO₂
   ↓
@@ -170,6 +173,25 @@ TICKET_PRICING_MAX_ADJUSTMENTS_PER_RUN=5
 ```
 
 A lista completa, defaults, limites e exemplos está em [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+
+## Descoberta automática de bases
+
+O bot **não depende de uma lista fixa de bases** para a operação normal. Em cada execução autenticada ele consulta, em modo somente leitura, a página nativa `research_main.php` e extrai o seletor `#hubSelect`, que representa os hubs/bases pertencentes à companhia.
+
+Os IDs nativos retornados pelo jogo são cruzados com `data/reference/airports.json` para obter o IATA de forma determinística. A lista live só é aceita quando **todos** os hubs observados resolvem de forma única; caso contrário, o bot usa o fallback configurado e não inventa uma base.
+
+Validação live em 05/10/2026:
+
+```text
+2926 → XAP → Chapecó
+2947 → GRU → São Paulo Guarulhos
+1275 → DTW → Detroit Metropolitan
+465  → TXL → Berlin Tegel
+```
+
+Se uma nova base for comprada no AM4 e seu airport ID existir no catálogo de aeroportos do sistema, ela será incorporada automaticamente na próxima execução, sem editar o código ou `AIRLINE_BASES_JSON`.
+
+`AIRLINE_BASES_JSON` permanece apenas como **fallback conservador** quando a lista live não pode ser comprovada.
 
 ## Demand Manager
 
@@ -296,6 +318,7 @@ Formato:
 
 ```text
 ✈️ AM4 • SUCESSO • run #123
+Bases: XAP, GRU, DTW, TXL • live
 Frota: 34 | voo 30 | prontas 4
 Demanda: 3/4 suficientes | insuf. 1 | indispon. 0
 Decolagens: 2/4 confirmadas | retidas 2 | incertas 0

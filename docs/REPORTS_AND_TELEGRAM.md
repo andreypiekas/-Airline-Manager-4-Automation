@@ -14,17 +14,18 @@ Isso evita o comportamento anterior de concatenar praticamente todos os Markdown
 O painel executivo contém:
 
 1. número da run, resultado, modo, SHA e link;
-2. frota;
-3. demanda;
-4. decolagens;
-5. pricing;
-6. route review / reroute;
-7. UI Health;
-8. orçamento de tempo;
-9. supplies, manutenção e campanhas;
-10. quarentenas e alertas;
-11. contagem de estados operacionais;
-12. somente aeronaves que exigem atenção.
+2. bases efetivamente usadas e origem da lista (`live` ou fallback);
+3. frota;
+4. demanda;
+5. decolagens;
+6. pricing;
+7. route review / reroute;
+8. UI Health;
+9. orçamento de tempo;
+10. supplies, manutenção e campanhas;
+11. quarentenas e alertas;
+12. contagem de estados operacionais;
+13. somente aeronaves que exigem atenção.
 
 A lista completa da frota não é repetida no Summary quando está em estado normal.
 
@@ -36,6 +37,7 @@ Pode conter, conforme a execução:
 
 - `company-dashboard.json/.md`
 - `operational-states.json`
+- `owned-airline-bases.json/.md`
 - `demand-report.json/.md`
 - `execution-report.json/.md`
 - `pricing-execution.json/.md`
@@ -69,10 +71,11 @@ TELEGRAM_CHAT_ID
 
 ### Formato do resumo
 
-O Telegram utiliza o mesmo `company-dashboard.json` do Summary, reduzindo o risco de divergência entre GitHub e Telegram.
+O Telegram utiliza o mesmo `company-dashboard.json` do Summary, reduzindo o risco de divergência entre GitHub e Telegram. A linha `Bases` mostra o conjunto efetivo usado naquela run e se veio da leitura live ou do fallback.
 
 ```text
 ✈️ AM4 • SUCESSO • run #123
+Bases: XAP, GRU, DTW, TXL • live
 Frota: 34 | voo 30 | prontas 4
 Demanda: 3/4 suficientes | insuf. 1 | indispon. 0
 Decolagens: 2/4 confirmadas | retidas 2 | incertas 0

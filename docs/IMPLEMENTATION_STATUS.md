@@ -17,13 +17,15 @@ O repositório antigo é apenas histórico.
 - produção #7: `SUCCESS`;
 - produção #7: etapa `Notificar resumo pelo Telegram` = `success`;
 - teste direto de Telegram = `TELEGRAM_TEST_SEND_OK`;
-- dashboard/Telegram executivos: cobertos por self-test e suíte offline após a atualização atual.
+- dashboard/Telegram executivos: cobertos por self-test e suíte offline após a atualização atual;
+- descoberta live de bases validada contra a conta real: `XAP`, `GRU`, `DTW` e `TXL` obtidos de `research_main.php#hubSelect` e cruzados pelos IDs nativos do catálogo.
 
 ## Componentes
 
 | Componente | Estado |
 | --- | --- |
 | Login / Fleet | Produção |
+| Descoberta automática de bases | Produção; lista live dos hubs com fallback conservador |
 | Demand Manager | Produção |
 | Threshold adaptativo | Produção, conservador |
 | Decolagem individual | Produção |
@@ -68,3 +70,19 @@ Resultados históricos incertos de departure e supply continuam preservados no j
 O `GITHUB_STEP_SUMMARY` é agora um painel executivo único. Os relatórios técnicos completos continuam no artifact `demand-report`.
 
 O Telegram deriva seus números do mesmo dashboard consolidado usado pelo Summary e omite identificadores sensíveis/operacionais desnecessários.
+
+
+## Bases operacionais
+
+A fonte primária deixou de ser uma lista fixa. O bot lê os hubs pertencentes à companhia em `research_main.php#hubSelect` e cruza os IDs do jogo com o catálogo local de aeroportos.
+
+Evidência live de 05/10/2026:
+
+| ID AM4 | IATA | Hub |
+| ---: | --- | --- |
+| 2926 | XAP | Chapecó |
+| 2947 | GRU | São Paulo Guarulhos |
+| 1275 | DTW | Detroit Metropolitan |
+| 465 | TXL | Berlin Tegel |
+
+A lista live é reutilizada por análise de demanda, resolução de origem, route review/reroute e departure. `AIRLINE_BASES_JSON` é apenas fallback. Uma futura base entra automaticamente quando o ID nativo puder ser resolvido de forma única no catálogo do sistema.

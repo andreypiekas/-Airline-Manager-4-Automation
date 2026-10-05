@@ -32,9 +32,37 @@ O resolvedor aceita `0.0`, `1.0`, `2.0` como inteiros equivalentes e rejeita val
 | `EXECUTE_INDIVIDUAL` | `true` | Política de compatibilidade para executor individual |
 | `MAX_INDIVIDUAL_DEPARTURES` | `20` | Limite quando o input é 0; hard cap 20 |
 | `RETURN_JOURNAL_SCOPE` | `am4-prod` | Namespace do journal persistente |
-| `AIRLINE_BASES_JSON` | `["XAP","GRU","DTW"]` | Bases usadas para resolução operacional de origem |
+| `AIRLINE_BASES_JSON` | `["XAP","GRU","DTW","TXL"]` | **Fallback** usado somente quando a lista live de hubs não pode ser comprovada |
 | `AIRCRAFT_ORIGINS_JSON` | `[]` | Overrides explícitos por aircraftId |
 | `ROUTE_REVIEW_TIMEZONE` | `America/Sao_Paulo` | Fuso lógico da revisão diária |
+
+### Descoberta live das bases
+
+A fonte principal das bases é o próprio AM4:
+
+```text
+research_main.php → #hubSelect
+```
+
+Em toda execução autenticada o bot lê o seletor de hubs em modo somente leitura, obtém os IDs nativos e os cruza com `data/reference/airports.json → sourceIds`. A lista só é adotada quando todos os IDs resolvem de forma única para IATAs válidos.
+
+No ambiente validado em 05/10/2026:
+
+```text
+2926 = XAP = Chapecó
+2947 = GRU = São Paulo Guarulhos
+1275 = DTW = Detroit Metropolitan
+465  = TXL = Berlin Tegel
+```
+
+Se o jogo retornar uma lista vazia, incompleta, duplicada ou um ID que não possa ser resolvido com segurança, o bot faz fail-closed para o conjunto de fallback de `AIRLINE_BASES_JSON`. A Variable não precisa ser atualizada cada vez que uma nova base é comprada; ela existe para continuidade segura em caso de indisponibilidade da fonte live.
+
+O relatório efetivo fica em:
+
+```text
+test-results/demand/owned-airline-bases.json
+test-results/demand/owned-airline-bases.md
+```
 
 Exemplo de `AIRCRAFT_ORIGINS_JSON`:
 
@@ -130,6 +158,7 @@ O workflow principal fixa o notifier agregado como ativo. Não é necessário cr
 
 ```text
 RETURN_JOURNAL_SCOPE=am4-prod
+AIRLINE_BASES_JSON=["XAP","GRU","DTW","TXL"]
 MAX_INDIVIDUAL_DEPARTURES=20
 
 MIN_DEMAND_PERCENTAGE=80
