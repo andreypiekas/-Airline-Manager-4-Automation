@@ -5,7 +5,7 @@ Referência dos principais Secrets, inputs e GitHub Actions Variables usados pel
 Para um passo a passo desde o GitHub Settings até o agendamento externo, consulte [GITHUB_AND_CRON_SETUP.md](GITHUB_AND_CRON_SETUP.md).
 
 > [!NOTE]
-> Para instalações públicas, configure explicitamente os valores específicos da sua companhia. Não dependa de fallbacks internos de compatibilidade do repositório.
+> Cada usuário deve executar o projeto a partir do próprio **fork** e configurar ali seus Secrets e Variables. Valores específicos da companhia devem ser declarados explicitamente no fork.
 
 ## Secrets
 
