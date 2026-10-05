@@ -135,14 +135,8 @@ test('All Operations', async ({ page }) => {
         console.log(`[UI] Modal bloqueante fechado (${context}).`);
       }
 
-      // Fecha paineis laterais comuns sem depender de um ponto fixo.
-      const x = Math.floor(Math.random() * 401) + 200;
-      const y = Math.floor(Math.random() * 16) + 15;
-      await GeneralUtils.movePointer(page, x, y);
-      await GeneralUtils.randomSleep(120, 300);
-      await page.mouse.down();
-      await GeneralUtils.randomSleep(70, 160);
-      await page.mouse.up();
+      // Fecha paineis laterais comuns por uma area neutra conhecida da interface.
+      await page.mouse.click(400, 20);
       await GeneralUtils.randomSleep(500, 900);
 
       // Um modal pode aparecer/continuar aberto depois do clique fora; nao segue silenciosamente.
