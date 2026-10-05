@@ -26,13 +26,14 @@ export async function runDemandSimulationDetailed(page: Page, config: DemandConf
     if(arrivals)console.log('[History] Chegadas observadas acrescentadas: '+arrivals+'.');
   }
   const adaptive=optimization.returnJournal?await loadAdaptiveDemandThresholds(optimization.returnJournal.directory,optimization.returnJournal.scope,config.minPercentage):new Map();
-  const report = new DemandManager({...config,dryRun:true},adaptive).analyze(collection);
+  const analysisNow=new Date();
+  const report = new DemandManager({...config,dryRun:true},adaptive).analyze(collection,analysisNow);
   await writeDemandReport(report);
   await writeOccupancyAudit(collection, config);
   await writeFleetObservations(collection, optimization.aircraftOrigins, 'test-results/demand', config.maxAgeSeconds, optimization.airlineBases);
   await writeReferenceReport(collection, optimization);
   await writeOptimizationReport(await analyzeOptimizationWithJournal(collection, optimization, reviews));
-  const researchReport=await researchFleetCandidates(page, collection, optimization, research);
+  const researchReport=await researchFleetCandidates(page, collection, optimization, research, analysisNow, report);
   await writeRouteResearchReport(researchReport);
   const liveStitches=optimization.returnJournal
     ? await readLiveAnchoredFlightHistoryStitchDiagnostics(optimization.returnJournal.directory,optimization.returnJournal.scope,collection.aircraft)
