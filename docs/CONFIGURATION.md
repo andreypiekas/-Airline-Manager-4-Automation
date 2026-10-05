@@ -54,7 +54,7 @@ o workflow principal aceita os seguintes inputs.
 | `departure_mode` | `production` | Escolhe `production` ou `simulation` |
 | `execute_individual` | `true` | Compatibilidade com versões anteriores |
 | `max_individual_departures` | `0` | `0` usa a política configurada no repositório |
-| `aktifkan_random_delay` | `false` | Atraso aleatório opcional |
+| `confirm_semiautomatic_execution` | `false` | Confirma operações reais somente nesta run quando o modo semiautomático estiver ativo |
 | `paksa_simpan_video` | `false` | Gravação de vídeo para diagnóstico |
 
 ### `departure_mode`
