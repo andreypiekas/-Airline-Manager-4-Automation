@@ -70,7 +70,7 @@ A produção exige, entre outros requisitos:
 - `DEMAND_DRY_RUN=false`;
 - `DEMAND_POOL_SCOPE=airport-pair`;
 - primeira tentativa do GitHub Actions run;
-- repositório autorizado;
+- execução dentro de um repositório GitHub Actions válido, incluindo forks;
 - contexto fresco imediatamente antes da mutação;
 - ausência de quarentena impeditiva;
 - orçamento de tempo suficiente.
