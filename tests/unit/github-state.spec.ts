@@ -69,6 +69,33 @@ test('initialize is explicit and never supplies SHA to overwrite a journal',asyn
   await client.initialize();expect(calls[0]).toMatchObject({branch:'am4-runtime-state'});expect(calls[0].sha).toBeUndefined();
   expect(JSON.parse(Buffer.from(calls[0].content,'base64').toString())).toEqual(empty());
 });
+
+test('fresh fork creates its own runtime branch and empty journal',async()=>{
+  const calls:{method:string;url:string;body:any}[]=[];
+  const request:typeof fetch=async(url,options)=>{
+    const method=String(options?.method),u=new URL(String(url));
+    const body=options?.body?JSON.parse(String(options.body)):null;
+    calls.push({method,url:u.pathname+u.search,body});
+    if(method==='GET'&&u.pathname.endsWith(`/contents/return-journal-${scope}.json`))return new Response('{}',{status:404});
+    if(method==='GET'&&u.pathname.endsWith('/git/ref/heads/main'))return new Response(JSON.stringify({object:{sha:'b'.repeat(40)}}),{status:200});
+    if(method==='POST'&&u.pathname.endsWith('/git/refs'))return new Response('{}',{status:201});
+    if(method==='PUT'&&u.pathname.endsWith(`/contents/return-journal-${scope}.json`))return new Response('{}',{status:201});
+    return new Response('{}',{status:500});
+  };
+  const client=new GitHubReturnState(options(),request);
+  await expect(client.ensureInitialized('main')).resolves.toBe('initialized');
+  expect(calls.find(x=>x.method==='POST')?.body).toEqual({ref:'refs/heads/am4-runtime-state',sha:'b'.repeat(40)});
+  const put=calls.find(x=>x.method==='PUT')?.body;
+  expect(put).toMatchObject({branch:'am4-runtime-state'});
+  expect(JSON.parse(Buffer.from(put.content,'base64').toString())).toEqual(empty());
+});
+
+test('existing fork journal is preserved by ensure initialization',async()=>{
+  let calls=0;
+  const client=new GitHubReturnState(options(),async()=>{calls++;return new Response('{}',{status:200});});
+  await expect(client.ensureInitialized('main')).resolves.toBe('existing');
+  expect(calls).toBe(1);
+});
 test('configuration rejects path traversal and missing scope',()=>{
   expect(()=>new GitHubReturnState({...options(),repository:'../other'})).toThrow();
   expect(()=>optimizationConfig({ENABLE_RETURN_JOURNAL:'true'})).toThrow();expect(()=>optimizationConfig({ENABLE_RETURN_JOURNAL:'yes'})).toThrow();
