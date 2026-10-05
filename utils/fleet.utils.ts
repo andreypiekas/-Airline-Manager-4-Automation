@@ -10,7 +10,7 @@ export class FleetUtils {
     const config = readDemandConfig();
     if (config.enabled) {
       const simulation=await runDemandSimulationDetailed(this.page,config);
-      if (!config.dryRun && (process.env.ENABLE_DEPART || 'true').trim().toLowerCase() === 'true') await runDemandExecution(this.page,config,process.env,'test-results/demand',simulation.optimization.airlineBases);
+      if (!config.dryRun && (process.env.ENABLE_DEPART || 'true').trim().toLowerCase() === 'true') await runDemandExecution(this.page,config,process.env,'test-results/demand');
       return; // No fallback to departAll, including on unavailable demand.
     }
     console.log('[Depart] Aguardando botao de decolagem...');
