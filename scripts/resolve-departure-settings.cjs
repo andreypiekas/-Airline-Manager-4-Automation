@@ -36,19 +36,27 @@ function resolveDepartureSettings(env) {
 
   const inputExecute = booleanValue(env.AM4_INPUT_EXECUTE, 'input execute');
   const repositoryExecute = booleanValue(env.AM4_REPOSITORY_EXECUTE, 'EXECUTE_INDIVIDUAL');
+  const semiAutomatic = booleanValue(env.AM4_SEMI_AUTOMATIC, 'SEMI_AUTOMATIC_MODE');
+  const semiConfirm = booleanValue(env.AM4_SEMI_CONFIRM, 'confirm_semiautomatic_execution');
+  const semiConfirmed = semiAutomatic && semiConfirm;
 
-  const execute =
+  const requestedExecute =
     mode === 'production' ||
     (mode === 'repository' && (inputExecute || repositoryExecute));
+  const execute = requestedExecute && (!semiAutomatic || semiConfirmed);
 
   const modeSource =
-    mode !== 'repository'
-      ? `input:${mode}`
-      : inputExecute
-        ? 'input:execute'
-        : repositoryExecute
-          ? 'variable:EXECUTE_INDIVIDUAL'
-          : 'default:simulation';
+    semiAutomatic && !semiConfirmed
+      ? 'variable:SEMI_AUTOMATIC_MODE'
+      : semiConfirmed
+        ? 'input:confirm_semiautomatic_execution'
+        : mode !== 'repository'
+          ? `input:${mode}`
+          : inputExecute
+            ? 'input:execute'
+            : repositoryExecute
+              ? 'variable:EXECUTE_INDIVIDUAL'
+              : 'default:simulation';
 
   // O input 0 (inclusive quando serializado como 0.0) significa
   // "usar configuracao do repositorio".
@@ -79,11 +87,20 @@ function resolveDepartureSettings(env) {
     limitSource = 'variable:MAX_INDIVIDUAL_DEPARTURES:clamped-to-20';
   }
 
+  const automationMode = semiAutomatic && !semiConfirmed
+    ? 'semi-automatic'
+    : execute
+      ? 'production'
+      : 'simulation';
+
   return {
     dryRun: !execute,
     maxDepartures,
     modeSource,
-    limitSource
+    limitSource,
+    semiAutomatic,
+    semiConfirmed,
+    automationMode
   };
 }
 
@@ -96,7 +113,7 @@ function main(env = process.env) {
 
   fs.appendFileSync(
     env.GITHUB_OUTPUT,
-    `dry_run=${settings.dryRun}\nmax_departures=${settings.maxDepartures}\n`
+    `dry_run=${settings.dryRun}\nmax_departures=${settings.maxDepartures}\nautomation_mode=${settings.automationMode}\nsemi_automatic=${settings.semiAutomatic}\nsemi_confirmed=${settings.semiConfirmed}\n`
   );
 
   console.log('[DepartureConfig] ' + JSON.stringify(settings));
