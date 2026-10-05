@@ -13,7 +13,7 @@ function setup(options:{initial?:CollectionResult;fresh?:CollectionResult;prepar
     prepare:async a=>{if(options.prepareFail)throw Error('unverified');return options.prepared??snapshot(a);},
     depart:async()=>{clicks++;if(options.clickFail)throw Error('timeout');},
     confirm:async a=>options.confirmed===null?null:options.confirmed??snapshot({...a,state:'inflight',onboard:{Y:88,J:0,F:0},timing:flightCountdownObservation(a.aircraftId,a.routeId,'01:00:00',new Date().toISOString())})};
-  const executor=new IndividualDepartureExecutor(port,readDemandConfig({}),{dryRun:options.dryRun??false,maxDepartures:options.limit??1,aircraftOrigins:new Map(),airlineBases:['GRU'],mutationDeadlineEpochMs:options.mutationDeadlineEpochMs,blockedDepartureKeys:options.blockedDepartureKeys,fuelHoldingLbsAtRunStart:options.fuelHoldingLbsAtRunStart},async r=>{if(options.saveFail&&r.entries.some(e=>e.status==='attempting'))throw Error('disk');saved.push(JSON.parse(JSON.stringify(r)));});
+  const executor=new IndividualDepartureExecutor(port,readDemandConfig({}),{dryRun:options.dryRun??false,maxDepartures:options.limit??1,mutationDeadlineEpochMs:options.mutationDeadlineEpochMs,blockedDepartureKeys:options.blockedDepartureKeys,fuelHoldingLbsAtRunStart:options.fuelHoldingLbsAtRunStart},async r=>{if(options.saveFail&&r.entries.some(e=>e.status==='attempting'))throw Error('disk');saved.push(JSON.parse(JSON.stringify(r)));});
   return {executor,saved,clicks:()=>clicks,reads:()=>reads};
 }
 test('persist intent before exactly one native click and confirm onboard separately from demand coverage',async()=>{
@@ -31,6 +31,14 @@ test('aircraft at its own base departs on the existing route when demand is suff
  expect(r.entries[0].from).toBe('GRU');
  expect(r.entries[0].to).toBe('AAA');
 });
+test('existing route departs from any airport even when neither endpoint is an airline hub',async()=>{
+ const anywhere=snapshot({from:'AAA',to:'BBB',routeLabel:'AAA - BBB'});
+ const s=setup({initial:collection([anywhere]),prepared:anywhere});
+ const r=await s.executor.run();
+ expect(s.clicks()).toBe(1);
+ expect(r.summary).toMatchObject({departed:1,held:0});
+ expect(r.entries[0]).toMatchObject({from:'AAA',to:'BBB',status:'departed'});
+});
 for(const [name,options] of Object.entries({
  'zero demand':{prepared:snapshot({remaining:{Y:0,J:0,F:0}})},
  'partial demand':{prepared:snapshot({remaining:{Y:79,J:0,F:0}})},
@@ -38,7 +46,6 @@ for(const [name,options] of Object.entries({
  'invalid demand':{prepared:snapshot({remaining:{Y:2000,J:0,F:0}})},
  'layout changed':{prepared:snapshot({capacity:{Y:101,J:0,F:0}})},
  'identity changed':{prepared:snapshot({aircraftId:'2'})},
- 'unknown origin':{initial:collection([snapshot({to:'BBB'})]),fresh:collection([snapshot({to:'BBB'})])},
  'incomplete initial collection':{initial:collection([snapshot()],false)},
  'duplicate aircraft':{initial:collection([snapshot(),snapshot({routeId:'11'})]),fresh:collection([snapshot(),snapshot({routeId:'11'})])},
  'duplicate route':{initial:collection([snapshot(),snapshot({aircraftId:'2'})]),fresh:collection([snapshot(),snapshot({aircraftId:'2'})])},
@@ -110,7 +117,7 @@ test('confirmed departures debit only uniquely verified historical fuel and prot
   depart:async()=>{clicks++;},
   confirm:async a=>snapshot({...a,state:'inflight',onboard:{Y:80,J:0,F:0},timing:flightCountdownObservation(a.aircraftId,a.routeId,'01:00:00',new Date().toISOString())})
  };
- const executor=new IndividualDepartureExecutor(port,readDemandConfig({}),{dryRun:false,maxDepartures:2,aircraftOrigins:new Map(),airlineBases:['GRU'],fuelHoldingLbsAtRunStart:29821},async()=>{});
+ const executor=new IndividualDepartureExecutor(port,readDemandConfig({}),{dryRun:false,maxDepartures:2,fuelHoldingLbsAtRunStart:29821},async()=>{});
  const r=await executor.run();
  expect(clicks).toBe(1);
  expect(r.entries[0].status).toBe('departed');
@@ -123,7 +130,7 @@ test('aircraft without verified fuel requirement is held without poisoning later
  const two=snapshot({aircraftId:'2',routeId:'11',from:'BBB',to:'GRU',routeLabel:'BBB - GRU',flightHistory:history('BBB','GRU',20000)});
  const list=collection([one,two]);let clicks=0;
  const port:DeparturePort={collect:async()=>list,prepare:async a=>a.aircraftId==='1'?one:two,depart:async()=>{clicks++;},confirm:async a=>snapshot({...a,state:'inflight',onboard:{Y:80,J:0,F:0},timing:flightCountdownObservation(a.aircraftId,a.routeId,'01:00:00',new Date().toISOString())})};
- const executor=new IndividualDepartureExecutor(port,readDemandConfig({}),{dryRun:false,maxDepartures:2,aircraftOrigins:new Map(),airlineBases:['GRU'],fuelHoldingLbsAtRunStart:100000},async()=>{});
+ const executor=new IndividualDepartureExecutor(port,readDemandConfig({}),{dryRun:false,maxDepartures:2,fuelHoldingLbsAtRunStart:100000},async()=>{});
  const r=await executor.run();
  expect(clicks).toBe(1);
  expect(r.entries[0]).toMatchObject({status:'held',reason:'FUEL_REQUIREMENT_UNVERIFIED'});
