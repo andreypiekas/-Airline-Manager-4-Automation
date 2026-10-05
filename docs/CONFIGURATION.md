@@ -2,6 +2,8 @@
 
 Referência dos principais Secrets, inputs e GitHub Actions Variables usados pelo workflow `.github/workflows/playwright.yml`.
 
+Para um passo a passo desde o GitHub Settings até o agendamento externo, consulte [GITHUB_AND_CRON_SETUP.md](GITHUB_AND_CRON_SETUP.md).
+
 > [!NOTE]
 > Para instalações públicas, configure explicitamente os valores específicos da sua companhia. Não dependa de fallbacks internos de compatibilidade do repositório.
 
