@@ -29,7 +29,7 @@ export function resolveOwnedHubOptions(
   fallbackBases:readonly string[]
 ):OwnedAirlineBasesReport {
   if(!validBases(fallbackBases))throw new Error('OWNED_BASE_FALLBACK_INVALID');
-  const fallback=()=>({
+  const fallback=():OwnedAirlineBasesReport=>({
     schemaVersion:1 as const,observedAt:new Date().toISOString(),status:'fallback' as const,
     source:'configured-fallback' as const,reason:'LIVE_HUB_LIST_UNAVAILABLE_OR_UNRESOLVED',
     effectiveBases:[...fallbackBases],hubs:[],unresolvedSourceIds:[],fallbackBases:[...fallbackBases],
