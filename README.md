@@ -221,15 +221,21 @@ Execuções simultâneas são serializadas para evitar duas automações atuando
 - ambiente suportado pelo Playwright
 - interface do Airline Manager 4 em **inglês**
 
-### Clonar e instalar
+### Criar seu fork
+
+Para usar o bot na sua própria conta, faça primeiro um **fork** deste repositório no GitHub.
+
+Depois, se quiser trabalhar localmente, clone **o seu fork**:
 
 ```bash
-git clone https://github.com/andreypiekas/Airline-Manager-4-Automation.git
+git clone https://github.com/SEU_USUARIO/Airline-Manager-4-Automation.git
 cd Airline-Manager-4-Automation
 
 npm ci
 npx playwright install --with-deps chromium
 ```
+
+Secrets e Variables devem ser configurados no seu fork.
 
 ### Validar localmente
 
@@ -248,9 +254,9 @@ Essas validações são offline e não precisam acessar a conta do jogo.
 
 > **Guia de instalação completo:** [GitHub Actions + Secrets + Variables + cron-job.org](docs/GITHUB_AND_CRON_SETUP.md)
 
-Abra:
+Depois de criar o fork, habilite **Actions** nele e abra:
 
-**Repository → Settings → Secrets and variables → Actions**
+**Seu fork → Settings → Secrets and variables → Actions**
 
 ### Secrets obrigatórios
 
@@ -334,7 +340,7 @@ Isso permite acionamento manual ou por um serviço externo, como **cron-job.org*
 Endpoint:
 
 ```text
-POST https://api.github.com/repos/andreypiekas/Airline-Manager-4-Automation/actions/workflows/playwright.yml/dispatches
+POST https://api.github.com/repos/SEU_USUARIO/Airline-Manager-4-Automation/actions/workflows/playwright.yml/dispatches
 ```
 
 Body:
