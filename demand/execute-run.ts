@@ -53,8 +53,11 @@ export async function runDemandExecution(page:Page,config=readDemandConfig(),env
   };
   const adaptive=optimization.returnJournal?await loadAdaptiveDemandThresholds(optimization.returnJournal.directory,optimization.returnJournal.scope,config.minPercentage):new Map();
   const fuelHoldingLbsAtRunStart=!settings.dryRun?await verifiedFuelHoldingFromRun(directory):undefined;
-  const campaignGateRequired=(env.CAMPAIGN_GATE_REQUIRED||'false').trim().toLowerCase()==='true';
-  const campaignGateVerified=(env.CAMPAIGN_GATE_VERIFIED||'false').trim().toLowerCase()==='true';
+  const campaignGateRequiredRaw=(env.CAMPAIGN_GATE_REQUIRED||'false').trim().toLowerCase();
+  const campaignGateVerifiedRaw=(env.CAMPAIGN_GATE_VERIFIED||'false').trim().toLowerCase();
+  if(!['true','false'].includes(campaignGateRequiredRaw)||!['true','false'].includes(campaignGateVerifiedRaw))throw Error('CAMPAIGN_GATE_INVALID');
+  const campaignGateRequired=campaignGateRequiredRaw==='true';
+  const campaignGateVerified=campaignGateVerifiedRaw==='true';
   const report=await new IndividualDepartureExecutor(new PlaywrightDeparturePort(page),config,{...settings,
     blockedDepartureKeys,fuelHoldingLbsAtRunStart,
     campaignVerified:!campaignGateRequired||campaignGateVerified},save,adaptive).run();
