@@ -1,10 +1,27 @@
 # Revisão ao retornar à base e tarifas PAX
 
-## Entrega em simulação
+## Estado atual — 05/10/2026
 
-Foram adicionados o cálculo de tarifas, a leitura do controle Auto já inspecionado e um motor independente para comparar rotas ao retornar à própria base. Todos os resultados são recomendações: `dryRun=true`, `mutationAuthorized=false`. Não existe clique em Auto, Save ou Reroute, nem alteração de rota/preço/decolagem.
+### Pricing
 
-**Integração de rotas ainda pendente:** a inspeção autenticada foi retomada em 2026-09-30 UTC. Foram confirmados dados operacionais e um orçamento de candidato, mas ainda não a base individual, o identificador persistente de chegada, a demanda restante do candidato nem todos os custos. Não foram inventados seletores para essas informações. O relatório automático marca a revisão da rota como indisponível até esses dados estarem confirmados e um provedor preencher `RouteReview`. Portanto este código ainda não troca rotas automaticamente nem afirma encontrar a melhor rota do jogo inteiro.
+O pricing PAX está integrado ao fluxo de produção. O executor pode salvar valores quando há drift real e exige releitura fresca depois do Save. Preço já correto gera `ALREADY_AT_TARGET` e não provoca mutação.
+
+A execução real de pricing exige ACK `native-route-price-save-v1`, GitHub Actions no repositório autorizado, primeira tentativa do run, journal persistente quando necessário e orçamento de tempo suficiente.
+
+### Route review
+
+A revisão automática está integrada ao journal e pode ser disparada por:
+
+- retorno confirmado à própria base; ou
+- revisão diária quando a aeronave está em solo na própria base.
+
+Resultados de análise podem ser `keep_route`, `hold`, `would_reroute` ou indisponível. `KEEP`/`HOLD` já foram observados em produção.
+
+### Reroute
+
+O executor nativo existe e permanece **fail-closed**. Um reroute real só chega ao clique quando a comparação está completa, o candidato permanece fresco, a evidência de controle nativo é válida e os gates `comparisonReady` / `mutationAuthorized` estão satisfeitos.
+
+Até existir um `would_reroute` natural com todos os requisitos, o bot deve continuar em HOLD. Não se força uma troca de rota para “validar” o executor.
 
 ## Tarifas solicitadas
 
@@ -22,7 +39,7 @@ A leitura aproveita `#seat-layout`, o botão de label exato Auto, seu atributo `
 
 A tarifa atual é lida apenas para detectar se já está correta. Se ela não estiver disponível, o relatório apresenta `recommendation_only`. Uma leitura de preço ausente não invalida a análise independente da demanda.
 
-Se a revisão recomendar uma nova rota, a proposta de tarifa da rota antiga é descartada. A sequência futura deve ser: confirmar troca → obter novo preço Auto → aplicar multiplicadores → confirmar valores salvos → reler demanda. Essa execução permanece não implementada/não autorizada nesta entrega.
+Se a revisão recomendar uma nova rota, a proposta de tarifa da rota antiga é descartada. A sequência futura deve ser: confirmar troca → obter novo preço Auto → aplicar multiplicadores → confirmar valores salvos → reler demanda. No fluxo atual, após um reroute **confirmado**, a política exige nova referência Auto da rota ativa antes de qualquer ajuste de preço; uma rota antiga não fornece autorização para salvar preço na nova rota.
 
 ## Quando comparar rotas
 
@@ -55,17 +72,17 @@ Ocupação mínima é exigida em cada trecho; ciclos com lucro não positivo sã
 
 ## Configuração e relatórios
 
-| Variável | Padrão | Efeito somente na simulação |
+| Variável | Padrão | Efeito |
 | --- | --- | --- |
 | `ENABLE_TICKET_PRICING` | `true` | Calcula propostas para os preços Auto disponíveis |
-| `ENABLE_ROUTE_OPTIMIZER` | `true` | Habilita revisão quando o provedor fornecer dados confirmados |
+| `ENABLE_ROUTE_OPTIMIZER` | `true` | Habilita route review com os dados verificados disponíveis |
 | `ROUTE_MIN_OCCUPANCY_PERCENT` | `80` | Ocupação estimada mínima em cada trecho |
 | `ROUTE_MIN_IMPROVEMENT_PERCENT` | `0` | Melhora mínima sobre lucro/hora atual |
 | `DEMAND_MAX_AGE_SECONDS` | `300` | Limita idade das posições e cotações |
 
-Essas opções são usadas no modo `ENABLE_DEMAND_MANAGER=true`. O fluxo legado não ganha alteração automática de preços/rotas com estas variáveis.
+Essas opções são usadas no fluxo atual com DemandManager. A execução real ainda depende dos guards específicos de pricing/reroute; nenhuma Variable isolada abre um gate de mutação.
 
-`optimization-report.json` e `optimization-report.md` são gerados ao lado do relatório de demanda, incluídos no mesmo artefato `demand-report` e no resumo do Actions. Exibem propostas de preços, estados e justificativas, inclusive pendências do adaptador. Sem dados confirmados não há recomendação de troca.
+`optimization-report.json` e `optimization-report.md` são gerados no artifact `demand-report`. O Summary do Actions mostra apenas o painel consolidado, sem repetir todo o relatório técnico. Exibem propostas de preços, estados e justificativas, inclusive pendências do adaptador. Sem dados confirmados não há recomendação de troca.
 
 Arquivos novos: `pricing/ticket-pricing.ts`, `optimization/route-optimizer.ts`, `optimization/report.ts`, `tests/unit/optimization.spec.ts` e este documento. Integração alterada em `demand/types.ts`, `demand/reader.ts`, `demand/run.ts`, `tests/airlineManager.spec.ts`, `tests/unit/reader.spec.ts` e `.github/workflows/playwright.yml`.
 

@@ -1,4 +1,7 @@
-# Reservas e custos das candidatas — simulacao
+# Reservas e custos das candidatas
+
+> **Estado atual (05/10/2026):** esta camada continua sendo uma camada de **evidência e planejamento conservador**. Ela participa do route research/review, mas nunca autoriza mutação sozinha. O executor de reroute exige gates adicionais, incluindo comparação pronta e autorização explícita. Trechos abaixo que descrevem limitações de custo continuam deliberadamente conservadores.
+
 
 Nenhum dado desta camada autoriza uma operacao. O relatorio `candidate-data.json` usa schemaVersion 2, preserva os campos anteriores e acrescenta `reservations`, `costScenarios`, `effectiveCosts` e referencias individuais de manutencao.
 

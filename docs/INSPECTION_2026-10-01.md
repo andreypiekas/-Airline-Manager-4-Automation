@@ -1,5 +1,7 @@
 # Inspeção técnica de leitura — 01/10/2026
 
+> **Documento histórico.** Este arquivo preserva evidência da etapa indicada pela data do título. Para configuração e estado atuais, consulte [README](../README.md), [CONFIGURATION.md](CONFIGURATION.md) e [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
 Foram consultados Fleet, detalhes de aeronaves, planejador de rotas, catálogo, Maintenance/Plan e mercados Fuel/Co2. Esta versão pública omite identificação da companhia, aeronaves, rotas e valores observados na conta.
 
 ## Mecanismos confirmados

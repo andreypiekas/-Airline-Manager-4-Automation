@@ -1,5 +1,8 @@
 # Referências de rotas e calendário de preços
 
+> **Estado atual (05/10/2026):** estas fontes continuam **somente informativas**. A automação de produção usa preço live, demanda observada e gates próprios; nenhum catálogo, planilha ou calendário externo autoriza mutação.
+
+
 Integração exclusivamente informativa, em simulação. Não altera rotas, tarifas, compras ou decolagens. O relatório `test-results/demand/reference-report.json` acompanha os artefatos de demanda do GitHub Actions. Nenhum arquivo original ou credencial é necessário no workflow.
 
 ## Rotas
@@ -35,6 +38,6 @@ python scripts/import-fuel-calendar.py /caminho/dos/arquivos
 
 O primeiro usa apenas a biblioteca padrão Python e lê XML em streaming. O segundo requer PyMuPDF, Pillow, NumPy e Tesseract; suas imagens intermediárias ficam em diretório temporário. Importação é uma tarefa manual offline, não executada no GitHub Actions. As tabelas OCR sempre voltam a não verificadas ao reimportar. Preserve os originais para auditoria; não é preciso publicá-los.
 
-## Pendências de produção
+## Limites atuais
 
-A persistência do transporte foi validada com eventos sintéticos em dois runners reais do GitHub Actions. Permanecem pendentes o histórico operacional da companhia, a coleta completa de candidatas e sua integração à execução do bot. Consulte [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) para evidências e limites atuais. Este avanço não habilita produção. Os testes usam dados simulados, sem operações no jogo.
+O journal operacional e a automação principal já estão em produção. Estas referências, porém, permanecem fora da cadeia de autorização: não substituem demanda restante, preço live, comparação econômica verificada ou confirmação nativa. Consulte [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) para o estado atual.

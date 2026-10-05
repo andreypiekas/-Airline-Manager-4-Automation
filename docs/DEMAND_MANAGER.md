@@ -1,16 +1,33 @@
 # DemandManager — analise e executor individual
 
-## Estado e limites de ativação
+## Estado atual de produção — 05/10/2026
 
-O motor de analise e puro: `departureAuthorized=false` em seus relatorios. Um executor separado suporta decolagens reais de retorno pela rota existente, mediante contexto explicito de Actions, fail-safe e releitura individual. A simulacao permanece o padrao. `DEMAND_FAIL_SAFE=false` e reruns reais sao rejeitados antes do login. Veja [escopo de producao, acionamento e travas](PRODUCTION_DEPARTURES.md).
+O `DemandManager` continua separando **análise** de **execução**. O relatório analítico nunca autoriza um clique sozinho; a decolagem real passa pelo executor individual, que refaz validações imediatamente antes da operação.
 
-O fluxo principal com DemandManager utiliza o mesmo login normal validado na coleta isolada. Valida tipos dos campos, aguarda o carregamento e descarta mensagens de erro que poderiam conter valores preenchidos. Nao grava formularios, trace, video, screenshots ou dados de sessao. O menu Fleet tambem precisa corresponder ao callback nativo inspecionado antes do clique.
+No workflow principal, `departure_mode=production` é o padrão atual. `departure_mode=simulation` força execução sem mutações operacionais. O modo efetivo e o limite são registrados em `[DepartureConfig]` antes do login.
 
-Com `ENABLE_DEMAND_MANAGER=true` e `DEMAND_DRY_RUN=true` (padrao), a rotina faz login, simula abastecimento no workflow principal, abre Fleet/Routes, coleta dados e termina. Não executa combustível, CO₂, manutenção, campanhas, decolagens, alteração de preços, Ground, Reroute, compra ou venda. `ENABLE_DEPART` não impede a análise somente de leitura. Falhas **nunca** caem em `departAll`.
+Produção real exige simultaneamente:
 
-O fluxo legado continua no codigo para compatibilidade, mas os workflows publicados fixam o DemandManager e o fail-safe ativos. Os inputs `execute_individual` (principal) ou `execute` (isolado), ou a variavel `EXECUTE_INDIVIDUAL=true`, permitem selecionar explicitamente o executor real. `departure_mode=simulation` sobrepoe a ativacao; `MAX_INDIVIDUAL_DEPARTURES` define o limite quando o input de limite e zero. Variaveis antigas nao restauram decolagens em massa nos workflows. Nao foram alterados secrets nem a configuracao do cron-job.org. A validacao isolada de fontes continua somente de leitura.
+- `ENABLE_DEMAND_MANAGER=true`;
+- `DEMAND_FAIL_SAFE=true`;
+- `DEMAND_DRY_RUN=false`;
+- ACK interno `individual-return-legs-v1`;
+- GitHub Actions no repositório autorizado;
+- `GITHUB_RUN_ATTEMPT=1`;
+- pool conservador compatível;
+- journal/quarentenas disponíveis quando exigidos;
+- leitura fresca de identidade, rota, layout e demanda;
+- orçamento de tempo suficiente.
 
-## Inspeção em 29/09/2026
+O workflow nunca faz fallback para `departAll`. Cada alvo é tratado individualmente; resultado incerto é persistido e não recebe retry automático.
+
+O limite padrão do workflow atual é controlado por `MAX_INDIVIDUAL_DEPARTURES` (20 quando omitido). O input `max_individual_departures=0` significa “usar a Variable”. O parser também normaliza entradas do GitHub como `0.0` ou `5.0` quando representam inteiros.
+
+A produção #6 confirmou duas decolagens reais e duas retenções por quarentena; a produção #7 confirmou que demanda suficiente, isoladamente, não supera quarentenas persistentes.
+
+Configuração completa: [CONFIGURATION.md](CONFIGURATION.md). Operação real: [PRODUCTION_DEPARTURES.md](PRODUCTION_DEPARTURES.md).
+
+## Inspeção histórica em 29/09/2026
 
 Confirmado por navegação autenticada somente de leitura:
 
@@ -79,7 +96,7 @@ Não há estado persistente de bloqueio: cada execução relê a demanda. Quando
 | `DEMAND_THRESHOLD_MODE` | `aggregate` | Alternativa `per-class` |
 | `DEMAND_POOL_SCOPE` | `airport-pair` | Conservador; `directional` apenas para simulação/estudo |
 | `DEMAND_MAX_AGE_SECONDS` | `300` | Máximo 3600; leituras antigas bloqueadas |
-| `DEMAND_TELEGRAM_ENABLED` | `false` | Envia apenas totais agregados se habilitado explicitamente |
+| `DEMAND_TELEGRAM_ENABLED` | controlado pelo workflow | O workflow principal atual habilita o notifier; requer Secrets do Telegram |
 
 Booleanos aceitam apenas `true`/`false`; erros de digitação são rejeitados. Carga/charter não suportado é indisponível, nunca convertido em passageiros. O layout e os labels devem estar em inglês.
 

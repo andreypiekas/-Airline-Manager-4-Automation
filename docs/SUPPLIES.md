@@ -1,4 +1,4 @@
-# Abastecimento no fluxo de demanda
+# Fuel e CO₂ no fluxo operacional
 
 O workflow principal `playwright.yml` consulta combustível e CO₂ antes de coletar a frota e executar as decolagens individuais. `ENABLE_FUEL` controla ambos; ausente significa `true`, como no fork original. A simulação de decolagens também torna as compras simuladas. O workflow isolado de decolagens não executa compras.
 
@@ -19,10 +19,15 @@ Os controles de menu, unidades e handlers nativos de Purchase foram observados e
 
 A intenção de compra é persistida antes do clique. Estoque, espaço disponível e pagamento são confirmados por leitura após a resposta nativa. Uma confirmação inconclusiva encerra a execução, sem repetir a compra ou seguir para decolagens. Alterações simultâneas manuais podem provocar essa parada conservadora. O mesmo bloqueio de conta, uma tentativa no Actions e marcador exclusivo por execução protegem as compras contra duplicação.
 
-`supply-report.json` e `supply-report.md` ficam no artefato `demand-report` e no resumo do Actions. `purchased` exige confirmação; `would_buy` é apenas simulação; `skipped` explica preço/estoque/orçamento; `unknown` exige inspeção do estoque antes de nova execução. Não confundir comprar estoque com calcular lucro líquido por trecho: os custos completos de rotas candidatas continuam pendentes. Manutenção, campanhas e ajuste de rotas/tarifas não são ativados por esta alteração.
+`supply-report.json` e `supply-report.md` ficam no artifact `demand-report`; o Summary do Actions usa apenas a consolidação executiva. `purchased` exige confirmação; `would_buy` é apenas simulação; `skipped` explica preço/estoque/orçamento; `unknown` exige inspeção do estoque antes de nova execução. Não confundir comprar estoque com calcular lucro líquido por trecho: os custos completos de rotas candidatas continuam pendentes. Manutenção, campanhas e ajuste de rotas/tarifas não são ativados por esta alteração.
 
-## Validacao de 01/10/2026
+## Validação atual — 05/10/2026
 
-Actions 36941084344: compilacao, build:state, 468 testes automatizados e 2 testes autenticados somente em simulacao aprovados. Os testes sinteticos cobrem compras confirmadas, teto, orcamento, controles divergentes, falhas HTTP, resultado desconhecido, duplicidade e reruns. Na interface real, o combustivel a 2090 foi ignorado; CO2 a 119 gerou proposta de 1.414.915 quotas, cotacao 168.375, sem clique de compra. Uma segunda simulacao de 1.000 unidades de cada recurso validou os dois formularios; seus tetos artificiais de teste nao sao usados em producao.
+O módulo já possui evidência de compra real confirmada no repositório novo. Na produção #6, Fuel foi observado abaixo do teto efetivo, a compra foi executada e estoque/pagamento foram confirmados por pós-leitura.
 
-A primeira compra real deste novo modulo ainda dependera de uma execucao de producao com preco elegivel; deve constar como `purchased` somente se estoque e pagamento forem confirmados. O teste autenticado nao e comprovacao de compra efetiva.
+Na produção #7, Fuel estava acima do teto e foi corretamente ignorado.
+
+CO₂ permanece protegido por uma quarentena persistente proveniente de resultado histórico incerto. Essa quarentena não deve ser removida ou repetida automaticamente apenas para testar o fluxo.
+
+O Summary executivo mostra status e razão agregados. `supply-report.json/.md` no artifact `demand-report` preserva quantidade, preço, plano e evidências disponíveis.
+

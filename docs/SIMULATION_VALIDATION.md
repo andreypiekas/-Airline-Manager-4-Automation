@@ -1,5 +1,7 @@
 # Simulações de múltiplas execuções — 30/09/2026
 
+> **Documento histórico.** Este arquivo preserva evidência da etapa indicada pela data do título. Para configuração e estado atuais, consulte [README](../README.md), [CONFIGURATION.md](CONFIGURATION.md) e [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
 A suíte local passou com 199 testes, incluindo três cenários completos, um por base XAP, GRU e DTW. Cada cenário usa seis diretórios de execução independentes, com restauração e salvamento pelo transporte GitHubReturnState contra uma API simulada em memória.
 
 | Execução | Condição | Resultado esperado |
