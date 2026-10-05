@@ -61,3 +61,14 @@ test('main workflow skips every game-access step when queued SHA is stale',async
   expect(block).toContain("if: steps.current_head.outputs.stale != 'true'");
  }
 });
+
+test('main workflow publishes only the executive dashboard in GITHUB_STEP_SUMMARY',async()=>{
+ const s=await readFile('.github/workflows/playwright.yml','utf8');
+ const start=s.indexOf('name: Publicar painel executivo');
+ const end=s.indexOf('name: Enviar JSON e Markdown de demanda',start);
+ expect(start).toBeGreaterThan(-1);expect(end).toBeGreaterThan(start);
+ const block=s.slice(start,end);
+ expect(block).toContain('company-dashboard.md');
+ for(const detailed of ['demand-report.md','route-research.md','candidate-data.md','route-execution.md','pricing-execution.md','optimization-report.md','supply-report.md','execution-report.md'])
+  expect(block).not.toContain(detailed);
+});
