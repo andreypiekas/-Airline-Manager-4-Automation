@@ -1,38 +1,32 @@
 # Operação do bot
 
-Guia rápido para operação diária do **Airline Manager 4 Automation**. A referência completa está em [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+Guia rápido para executar o **Airline Manager 4 Automation**. Para todos os parâmetros disponíveis, consulte [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
-## Workflow de produção
+## Workflow principal
 
 ```text
 .github/workflows/playwright.yml
 ```
 
-O workflow aceita acionamento manual e via API `workflow_dispatch`. Não existe `schedule` interno.
+O workflow usa `workflow_dispatch`. Não existe agendamento interno obrigatório: a execução pode ser manual ou acionada por uma integração externa.
 
-## cron-job.org
+## Modos
 
-Configuração recomendada:
+### Produção
 
 ```text
-Método: POST
-URL: https://api.github.com/repos/andreypiekas/Airline-Manager-4-Automation/actions/workflows/playwright.yml/dispatches
-
-Accept: application/vnd.github+json
-Authorization: Bearer SEU_TOKEN
-X-GitHub-Api-Version: 2022-11-28
-Content-Type: application/json
+departure_mode=production
 ```
 
-Body:
+Habilita os módulos de produção que estiverem configurados. Cada mutação ainda precisa passar pelos próprios gates de segurança.
 
-```json
-{"ref":"main"}
+### Simulação
+
+```text
+departure_mode=simulation
 ```
 
-Periodicidade operacional atual: **30 minutos**.
-
-Use Fine-grained PAT restrito ao repositório com **Actions: Read and write**.
+Mantém as principais mutações desativadas e é o modo recomendado para inspeções controladas.
 
 ## Secrets
 
@@ -50,46 +44,47 @@ TELEGRAM_BOT_TOKEN
 TELEGRAM_CHAT_ID
 ```
 
-## Como interpretar uma run
+## Agendamento externo
 
-`success` significa que o workflow concluiu de forma consistente. Não significa que toda fase necessariamente realizou mutação.
-
-É normal uma run verde terminar sem decolagens, reroutes ou compras quando:
-
-- não há aeronaves prontas;
-- demanda está abaixo do threshold;
-- recurso está acima do teto;
-- preços já estão no alvo;
-- route review ficou em HOLD;
-- existe quarentena;
-- faltou evidência suficiente;
-- orçamento de tempo bloqueou a fase.
-
-Leia o **Summary executivo** e use o artifact `demand-report` para detalhes.
-
-## Simulation
-
-Escolha:
+Um serviço externo pode chamar:
 
 ```text
-departure_mode=simulation
+POST https://api.github.com/repos/andreypiekas/Airline-Manager-4-Automation/actions/workflows/playwright.yml/dispatches
 ```
 
-Esse modo impede as principais mutações e é apropriado para inspeções controladas.
+Body mínimo:
+
+```json
+{"ref":"main"}
+```
+
+Use um Fine-grained Personal Access Token restrito ao repositório e com a permissão mínima necessária para executar Actions.
+
+## Como interpretar uma run
+
+`success` significa que o workflow concluiu de forma consistente. Não significa que todas as fases realizaram mutações.
+
+Uma execução pode terminar sem decolagens, compras, pricing ou reroutes quando, por exemplo:
+
+- não há aeronaves prontas;
+- a demanda está abaixo do threshold;
+- o preço de um recurso está acima do teto;
+- o preço PAX já está correto;
+- faltam evidências para route review;
+- existe uma quarentena persistente;
+- o orçamento de tempo bloqueou a fase.
+
+Consulte primeiro o **GitHub Step Summary** e depois os artifacts detalhados.
 
 ## Estado persistente
 
-Branch:
+A branch de runtime é:
 
 ```text
 am4-runtime-state
 ```
 
-Não apague o journal ou as quarentenas para liberar uma nova tentativa. Resultado incerto precisa permanecer bloqueado até existir evidência segura para tratamento manual.
-
-## Telegram
-
-O workflow envia um resumo agregado ao final quando os Secrets estão configurados. Veja [docs/REPORTS_AND_TELEGRAM.md](docs/REPORTS_AND_TELEGRAM.md).
+O journal e as quarentenas não devem ser apagados apenas para liberar uma nova tentativa. Um resultado incerto precisa permanecer bloqueado até existir evidência segura para tratamento.
 
 ## Antes de publicar alteração operacional
 
@@ -100,4 +95,4 @@ node scripts/company-dashboard.cjs --self-test
 npm test
 ```
 
-Depois aguarde `validate.yml` verde. Não use uma produção real apenas para “testar se passa”.
+Depois, confirme que o workflow `validate.yml` ficou verde. Não use uma produção real apenas para exercitar um caminho de teste.
