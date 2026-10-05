@@ -321,22 +321,11 @@ test('All Operations', async ({ page }) => {
   const maintenanceUtils = new MaintenanceUtils(page);
   // End //
 
-  /**
-   * FIX KOREKSI 1: Mengubah penutupan menu area kosong atas layar menjadi human-like.
-   * Menggunakan fungsi pergerakan mouse melengkung dan mengacak durasi klik (bukan teleportasi kaku).
-   */
+  /** Fecha o painel lateral clicando em uma area neutra conhecida da interface. */
   const clickBlankSpaceTop = async () => {
     console.log('Clicando fora do painel para fechar o menu...');
-    const randomX = Math.floor(Math.random() * (600 - 200 + 1) + 200);
-    const randomY = Math.floor(Math.random() * (30 - 15 + 1) + 15);
-    
-    // Move o ponteiro antes de clicar fora do painel.
-    await GeneralUtils.movePointer(page, randomX, randomY);
-    await GeneralUtils.randomSleep(150, 400); // Aguarda estabilizacao do painel.
-    
-    await page.mouse.down();
-    await GeneralUtils.randomSleep(80, 180); // Pequena espera de estabilidade.
-    await page.mouse.up();
+    await page.mouse.click(400, 20);
+    await GeneralUtils.randomSleep(300, 600);
   };
 
   // Controles principais usados na recuperacao de interface.
