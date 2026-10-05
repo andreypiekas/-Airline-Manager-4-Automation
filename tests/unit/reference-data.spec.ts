@@ -78,13 +78,14 @@ test('packaged references generate a simulation artifact and incomplete collecti
  const directory=await mkdtemp(join(tmpdir(),'am4-reference-'));
  try {
   const collection={aircraft:[a],complete:true,expectedRoutes:1,warnings:[]};
-  const report=await writeReferenceReport(collection,optimizationConfig({}),directory,new Date('2026-09-01T03:00:00Z'));
+  const config=optimizationConfig({AIRLINE_BASES_JSON:'["GRU"]'});
+  const report=await writeReferenceReport(collection,config,directory,new Date('2026-09-01T03:00:00Z'));
   expect(report.warnings).toEqual([]);
   expect(report.routes[0]).toMatchObject({aircraftId:'1',candidates:expect.any(Array)});
   const disk=JSON.parse(await readFile(join(directory,'reference-report.json'),'utf8'));
   expect(disk.routes[0].candidates.length).toBeGreaterThan(0);
   expect(disk).toMatchObject({dryRun:true,mutationAuthorized:false,referenceOnly:true,fuel:{status:'ocr-unverified',purchaseAuthorized:false}});
-  const incomplete=await writeReferenceReport({...collection,complete:false},optimizationConfig({}),directory);
+  const incomplete=await writeReferenceReport({...collection,complete:false},config,directory);
   expect(incomplete.routes[0]).toMatchObject({candidates:[]});
  } finally {await rm(directory,{recursive:true,force:true});}
 });
