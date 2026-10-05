@@ -7,7 +7,7 @@ const safe=s=>String(s??'').replace(/[|\r\n<>]/g,' ');
 function build(dir='test-results/demand',logPath='test-results/bot.log',journalPath='.am4-state/github/return-journal.json'){
   const demand=read(dir,'demand-report.json'),fleet=read(dir,'fleet-observations.json'),execution=read(dir,'execution-report.json'),
     routeExecution=read(dir,'route-execution.json'),candidateData=read(dir,'candidate-data.json'),supplies=read(dir,'supply-report.json'),pricing=read(dir,'pricing-execution.json'),modules=read(dir,'operational-modules.json'),
-    uiHealth=read(dir,'ui-health.json'),runBudget=read(dir,'run-time-budget.json');
+    uiHealth=read(dir,'ui-health.json'),runBudget=read(dir,'run-time-budget.json'),ownedBases=read(dir,'owned-airline-bases.json');
   const log=(()=>{try{return fs.readFileSync(logPath,'utf8')}catch{return ''}})();
   const journal=readPath(journalPath),events=Array.isArray(journal?.events)?journal.events:[];
   const uncertainDepartureKeys=new Set(events.filter(x=>x?.type==='departure-uncertain').map(x=>x.aircraftId+':'+x.routeId));
@@ -47,6 +47,7 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
     run:{number:process.env.GITHUB_RUN_NUMBER||null,id:process.env.GITHUB_RUN_ID||null,attempt:process.env.GITHUB_RUN_ATTEMPT||null,
       sha:process.env.GITHUB_SHA||null,event:process.env.GITHUB_EVENT_NAME||null,result:process.env.BOT_RESULT||null,
       stale:process.env.STALE_RUN==='true',mode:execution?(execution.dryRun?'simulation':'production'):null,url:process.env.RUN_URL||null},
+    bases:{status:ownedBases?.status??'not_observed',effective:Array.isArray(ownedBases?.effectiveBases)?ownedBases.effectiveBases:[],source:ownedBases?.source??null,reason:ownedBases?.reason??null},
     demand:{collectionComplete:demand?.collectionComplete??null,evaluated:demand?.summary?.evaluated??null,sufficient:demand?.summary?.sufficient??null,
       insufficient:demand?.summary?.insufficient??null,unavailable:demand?.summary?.unavailable??null,notReady:demand?.summary?.notReady??null},
     fleet:{seen:demand?.summary?.fleetSeen??aircraft.length,ready:aircraft.filter(a=>a.state==='ready').length,
@@ -103,6 +104,7 @@ function markdown(d,states){
   d.run?.url?`> [Abrir execução no GitHub Actions](${d.run.url})`:'','',
   '## Resumo executivo','',
   '| Área | Resultado | Evidência resumida |','| --- | --- | --- |',
+  `| Bases | **${d.bases?.effective?.length??0}** ativas | ${d.bases?.effective?.length?d.bases.effective.map(safe).join(', '):'n/d'} · fonte ${safe(d.bases?.status||'n/d')} |`,
   `| Frota | **${fmt(d.fleet.seen)}** vistas | ${fmt(d.fleet.inflight)} em voo · ${fmt(d.fleet.ready)} prontas · ${fmt(d.fleet.unavailable)} indisponíveis |`,
   `| Demanda | **${fmt(d.demand.sufficient)}/${fmt(d.demand.evaluated)}** suficientes | insuficientes ${fmt(d.demand.insufficient)} · indisponíveis ${fmt(d.demand.unavailable)} · coleta ${d.demand.collectionComplete===true?'completa':d.demand.collectionComplete===false?'incompleta':'n/d'} |`,
   `| Decolagens | **${fmt(d.departures.departed)}/${fmt(d.departures.evaluated)}** confirmadas | retidas ${fmt(d.departures.held)} · incertas ${fmt(d.departures.unknown)} |`,
@@ -137,6 +139,7 @@ function selfTest(){
   {aircraftId:'5',registration:'E',routeId:'5',state:'ready'},{aircraftId:'6',registration:'F',routeId:'6',state:'ready'},
   {aircraftId:'7',registration:'G',routeId:'7',state:'ready'},{aircraftId:'8',registration:'H',routeId:'8',state:'ready'},
   {aircraftId:'9',registration:'I',routeId:'9',state:'inflight',operationalOrigin:null,originResolution:{source:'unavailable',reason:'Nenhum aeroporto da rota pertence as bases configuradas.'}}]}));
+ fs.writeFileSync(path.join(dir,'owned-airline-bases.json'),JSON.stringify({status:'observed',source:'research_main.php#hubSelect',reason:'LIVE_OWNED_HUBS_CROSSCHECKED_BY_AIRPORT_SOURCE_ID',effectiveBases:['XAP','GRU','DTW','TXL']}));
  fs.writeFileSync(path.join(dir,'demand-report.json'),JSON.stringify({summary:{fleetSeen:9}}));
  fs.writeFileSync(path.join(dir,'execution-report.json'),JSON.stringify({summary:{departed:0,held:3,unknown:1},entries:[
   {aircraftId:'1',status:'held',reason:'DEMAND_BELOW_THRESHOLD',demand:{decision:'hold_insufficient'}},
@@ -158,7 +161,7 @@ function selfTest(){
   {type:'supply-uncertain',kind:'co2'}
  ]}));
  const {dashboard,states}=build(dir,path.join(dir,'missing.log'),path.join(dir,'journal.json'));
- assert.equal(dashboard.fleet.seen,9);assert.equal(dashboard.operationalStates.AGUARDANDO_DEMANDA,1);assert.equal(dashboard.departures.fuelHeld,1);
+ assert.deepEqual(dashboard.bases,{status:'observed',effective:['XAP','GRU','DTW','TXL'],source:'research_main.php#hubSelect',reason:'LIVE_OWNED_HUBS_CROSSCHECKED_BY_AIRPORT_SOURCE_ID'});assert.equal(dashboard.fleet.seen,9);assert.equal(dashboard.operationalStates.AGUARDANDO_DEMANDA,1);assert.equal(dashboard.departures.fuelHeld,1);
  assert.equal(dashboard.operationalStates.PRECISA_REVISAR_ROTA,5);assert.equal(dashboard.operationalStates.PRECISA_REVISAR_PRECO,1);assert.equal(dashboard.operationalStates.PRONTA_PARA_DECOLAR,1);assert.equal(dashboard.operationalStates.AGUARDANDO_RECURSO,1);
  assert.deepEqual(dashboard.routes.reviewDecisions,{keep:1,hold:1,wouldReroute:0,unavailable:0});
  assert.equal(dashboard.routes.originUnavailable,1);assert.equal(dashboard.pricing.phaseHoldReason,'PRICING_INITIAL_COLLECTION_INCOMPLETE');
