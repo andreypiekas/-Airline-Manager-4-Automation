@@ -20,7 +20,7 @@ export interface OwnedAirlineBasesReport {
 }
 
 function validBases(bases:readonly string[]){
-  return bases.length>0&&bases.every(x=>/^[A-Z]{3}$/.test(x))&&new Set(bases).size===bases.length;
+  return bases.every(x=>/^[A-Z]{3}$/.test(x))&&new Set(bases).size===bases.length;
 }
 
 export function resolveOwnedHubOptions(
