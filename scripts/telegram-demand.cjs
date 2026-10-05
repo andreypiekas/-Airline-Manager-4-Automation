@@ -109,8 +109,9 @@ function runSummaryMessage(dir='test-results/demand',botResult=process.env.BOT_R
   if(d?.departures)lines.push('Decolagens: '+n(d.departures.departed)+'/'+n(d.departures.evaluated)+' confirmadas | retidas '+n(d.departures.held)+' | incertas '+n(d.departures.unknown));
   if(d?.pricing)lines.push('Pricing: '+n(d.pricing.adjusted)+' ajustadas | '+n(d.pricing.unchanged)+' no alvo | incertas '+n(d.pricing.unknown));
   if(d?.routes){
-    const r=d.routes.reviewDecisions||{};
-    lines.push('Rotas: '+n(d.routes.rerouted)+' reroutes | revisão KEEP '+n(r.keep)+' / HOLD '+n(r.hold)+' / candidato '+n(r.wouldReroute));
+    const r=d.routes.reviewDecisions||{},dr=d.routes.demandTriggered||{};
+    lines.push('Rotas: '+n(d.routes.rerouted)+' reroutes | revisão KEEP '+n(r.keep)+' / HOLD '+n(r.hold)+' / candidato '+n(r.wouldReroute)+
+      ' | demanda→pesquisa '+n(dr.observed)+'/'+n(dr.eligible));
   }
   const supply=(label,x)=>{
     if(!x)return label+': n/d';
