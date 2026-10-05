@@ -89,20 +89,38 @@ export class DemandReader {
     return result;
   }
 
-  /** Re-read a ready aircraft on the currently visible route page before research. */
-  async readReadyAircraftDetails(expected: AircraftSnapshot): Promise<AircraftSnapshot> {
+  /** Re-read one known aircraft from the currently visible route page.
+   * Used for fresh pre-departure evidence and targeted post-click confirmation.
+   */
+  async readAircraftDetails(expected: AircraftSnapshot): Promise<AircraftSnapshot> {
     if (!/^[1-9]\d*$/.test(expected.aircraftId) || !/^[1-9]\d*$/.test(expected.routeId)) throw new Error('RESEARCH_IDENTITY_INVALID');
     const row = this.page.locator(`#routeMainList${expected.routeId}`);
-    if (await row.count() !== 1 || !await row.isVisible() || !await row.evaluate(e => e.classList.contains('classPAX') && e.classList.contains('listDepartable'))) throw new Error('RESEARCH_NOT_READY');
-    const depart = row.locator(`#listDepart${expected.routeId}`);
-    if (!await depart.isVisible() || !await depart.isEnabled()) throw new Error('RESEARCH_NOT_READY');
-    const registration = row.locator(`#acRegList${expected.aircraftId}`);
-    if (await registration.count() !== 1 || (await registration.innerText()).trim() !== expected.registration) throw new Error('RESEARCH_IDENTITY_INVALID');
-    const item: AircraftSnapshot = { ...expected, capacity: null, remaining: null, dailyTotal: null, operational: null, fares: undefined, state: 'unavailable' };
-    const card: RouteCard = { ...expected, ready: true, inflight: false, pax: true, onboardText: '' };
+    if (await row.count() !== 1 || !await row.isVisible() || !await row.evaluate(e => e.classList.contains('classPAX'))) throw new Error('RESEARCH_ROUTE_NOT_AVAILABLE');
+    const callbacks=await row.locator('a').evaluateAll(es=>es.map(e=>e.getAttribute('onclick')||''));
+    if(callbacks.filter(callback=>aircraftIdFromDetailsControl(callback)===expected.aircraftId).length!==1)throw new Error('RESEARCH_IDENTITY_INVALID');
+    const routeLabel=await row.locator('span.s-text').evaluateAll(es=>es.map(e=>e.textContent?.trim()||'').find(t=>/^[A-Z0-9]{3}\s*-\s*[A-Z0-9]{3}$/.test(t))||'');
+    const codes=routeLabel.split(/\s*-\s*/);
+    if(codes.length!==2||[...codes].sort().join(':')!==[expected.from,expected.to].sort().join(':'))throw new Error('RESEARCH_CONTEXT_CHANGED');
+    const depart=row.locator(`#listDepart${expected.routeId}`);
+    const ready=await row.evaluate(e=>e.classList.contains('listDepartable'))&&await depart.count()===1&&await depart.isVisible()&&await depart.isEnabled();
+    const rowText=await row.innerText();
+    const inflight=/Onboard\s*:/.test(rowText);
+    if((ready&&inflight)||(!ready&&!inflight))throw new Error('RESEARCH_STATE_UNAVAILABLE');
+    const onboardText=(rowText.match(/Onboard:[^\n]*/)||[''])[0].trim();
+    const item: AircraftSnapshot = { ...expected, routeLabel, capacity: null, remaining: null, dailyTotal: null, operational: null, fares: undefined,
+      onboard: inflight?parseOnboard(onboardText):null,state: inflight?'inflight':'unavailable' };
+    const card: RouteCard = { routeId:expected.routeId,aircraftId:expected.aircraftId,registration:expected.registration,routeLabel,
+      from:expected.from,to:expected.to,ready,inflight,pax:true,onboardText };
     await this.readDetails(card, item);
-    if (item.issue || item.from !== expected.from || item.to !== expected.to || !item.capacity || !expected.capacity ||
+    if (item.issue || item.registration!==expected.registration || item.from !== expected.from || item.to !== expected.to || !item.capacity || !expected.capacity ||
       ['Y','J','F'].some(k => item.capacity![k as keyof typeof item.capacity] !== expected.capacity![k as keyof typeof expected.capacity])) throw new Error('RESEARCH_CONTEXT_CHANGED');
+    return item;
+  }
+
+  /** Re-read a ready aircraft on the currently visible route page before research. */
+  async readReadyAircraftDetails(expected: AircraftSnapshot): Promise<AircraftSnapshot> {
+    const item=await this.readAircraftDetails(expected);
+    if(item.state!=='ready')throw new Error('RESEARCH_NOT_READY');
     return item;
   }
 
