@@ -7,7 +7,7 @@ const {resolveDepartureSettings}=require('../../scripts/resolve-departure-settin
 test('exact reported repository configuration activates real mode and keeps its one-flight limit',()=>{
  expect(resolveDepartureSettings({AM4_INPUT_EXECUTE:'false',AM4_INPUT_MAX_DEPARTURES:'0',AM4_REPOSITORY_EXECUTE:'true',AM4_REPOSITORY_MAX_DEPARTURES:'1'})).toMatchObject({dryRun:false,maxDepartures:1,modeSource:'variable:EXECUTE_INDIVIDUAL'});
 });
-test('absent settings default to simulation and one-flight limit',()=>expect(resolveDepartureSettings({})).toMatchObject({dryRun:true,maxDepartures:1}));
+test('absent settings default to simulation and one-flight limit',()=>expect(resolveDepartureSettings({})).toMatchObject({dryRun:true,maxDepartures:1,automationMode:'simulation',semiAutomatic:false,semiConfirmed:false}));
 test('cron with no new inputs inherits the repository activation and limit',()=>expect(resolveDepartureSettings({AM4_REPOSITORY_EXECUTE:'true',AM4_REPOSITORY_MAX_DEPARTURES:'3'})).toMatchObject({dryRun:false,maxDepartures:3}));
 test('default zero input does not shadow the repository limit',()=>expect(resolveDepartureSettings({AM4_INPUT_MAX_DEPARTURES:'0',AM4_REPOSITORY_MAX_DEPARTURES:'4'}).maxDepartures).toBe(4));
 test('GitHub numeric zero-point-zero input uses repository limit without weakening integer validation',()=>{
@@ -21,16 +21,37 @@ test('repository zero limit falls back to safe default one',()=>expect(resolveDe
 test('simulation override prevents operations even with both activation switches true',()=>expect(resolveDepartureSettings({AM4_INPUT_MODE:'simulation',AM4_INPUT_EXECUTE:'true',AM4_REPOSITORY_EXECUTE:'true'}).dryRun).toBe(true));
 test('production input is explicit activation',()=>expect(resolveDepartureSettings({AM4_INPUT_MODE:'production',AM4_REPOSITORY_EXECUTE:'false'}).dryRun).toBe(false));
 test('legacy activation input still works',()=>expect(resolveDepartureSettings({AM4_INPUT_EXECUTE:'true',AM4_REPOSITORY_EXECUTE:'false'}).dryRun).toBe(false));
-for(const [index,env] of [{AM4_INPUT_MODE:'automatic'},{AM4_REPOSITORY_EXECUTE:'tru'},{AM4_INPUT_EXECUTE:'yes'},{AM4_INPUT_MAX_DEPARTURES:'-1'},{AM4_INPUT_MAX_DEPARTURES:'21'},{AM4_INPUT_MAX_DEPARTURES:'1.5'},{AM4_REPOSITORY_MAX_DEPARTURES:'1\nother=secret'}].entries())
+test('semi-automatic variable forces analysis-only even when production was requested',()=>{
+ expect(resolveDepartureSettings({
+  AM4_INPUT_MODE:'production',AM4_REPOSITORY_EXECUTE:'true',AM4_SEMI_AUTOMATIC:'true',AM4_SEMI_CONFIRM:'false'
+ })).toMatchObject({dryRun:true,automationMode:'semi-automatic',semiAutomatic:true,semiConfirmed:false,modeSource:'variable:SEMI_AUTOMATIC_MODE'});
+});
+test('semi-automatic production requires explicit confirmation for that run',()=>{
+ expect(resolveDepartureSettings({
+  AM4_INPUT_MODE:'production',AM4_REPOSITORY_EXECUTE:'true',AM4_SEMI_AUTOMATIC:'true',AM4_SEMI_CONFIRM:'true'
+ })).toMatchObject({dryRun:false,automationMode:'production',semiAutomatic:true,semiConfirmed:true,modeSource:'input:confirm_semiautomatic_execution'});
+});
+
+for(const [index,env] of [{AM4_INPUT_MODE:'automatic'},{AM4_REPOSITORY_EXECUTE:'tru'},{AM4_INPUT_EXECUTE:'yes'},{AM4_SEMI_AUTOMATIC:'yes'},{AM4_SEMI_CONFIRM:'1'},{AM4_INPUT_MAX_DEPARTURES:'-1'},{AM4_INPUT_MAX_DEPARTURES:'21'},{AM4_INPUT_MAX_DEPARTURES:'1.5'},{AM4_REPOSITORY_MAX_DEPARTURES:'1\nother=secret'}].entries())
  test(`invalid settings fail before any game login case ${index}`,()=>expect(()=>resolveDepartureSettings(env)).toThrow());
 test('both workflows wire repository variables into the shared resolver and use its outputs',async()=>{
  for(const name of ['playwright.yml','individual-departures.yml']){
-  const s=await readFile('.github/workflows/'+name,'utf8');expect(s).toContain("AM4_REPOSITORY_EXECUTE: ${{ vars.EXECUTE_INDIVIDUAL || 'true' }}");expect(s).toContain("AM4_REPOSITORY_MAX_DEPARTURES: ${{ vars.MAX_INDIVIDUAL_DEPARTURES || '20' }}");expect(s).toContain('DEMAND_DRY_RUN: ${{ steps.departure_settings.outputs.dry_run }}');expect(s).toContain('DEMAND_MAX_DEPARTURES_PER_RUN: ${{ steps.departure_settings.outputs.max_departures }}');expect(s).toContain('group: airline-manager-4-main');expect(s).not.toContain('\n  push:');
+  const s=await readFile('.github/workflows/'+name,'utf8');expect(s).toContain("AM4_REPOSITORY_EXECUTE: ${{ vars.EXECUTE_INDIVIDUAL || 'true' }}");expect(s).toContain("AM4_REPOSITORY_MAX_DEPARTURES: ${{ vars.MAX_INDIVIDUAL_DEPARTURES || '20' }}");expect(s).toContain("AM4_SEMI_AUTOMATIC: ${{ vars.SEMI_AUTOMATIC_MODE || 'false' }}");expect(s).toContain('AM4_SEMI_CONFIRM: ${{ inputs.confirm_semiautomatic_execution');expect(s).toContain('DEMAND_DRY_RUN: ${{ steps.departure_settings.outputs.dry_run }}');expect(s).toContain('DEMAND_MAX_DEPARTURES_PER_RUN: ${{ steps.departure_settings.outputs.max_departures }}');expect(s).toContain('group: airline-manager-4-main');expect(s).not.toContain('\n  push:');
  }
 });
 test('resolver CLI produces safe Action outputs and explicit operational-mode log without credentials',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'am4-dispatch-'));const target=join(dir,'output');
- try{const log=execFileSync(process.execPath,['scripts/resolve-departure-settings.cjs'],{env:{GITHUB_OUTPUT:target,AM4_REPOSITORY_EXECUTE:'true',AM4_REPOSITORY_MAX_DEPARTURES:'1'},encoding:'utf8'});expect(await readFile(target,'utf8')).toBe('dry_run=false\nmax_departures=1\n');expect(log).toContain('"dryRun":false');expect(log).toContain('variable:EXECUTE_INDIVIDUAL');}finally{await rm(dir,{recursive:true,force:true});}
+ try{const log=execFileSync(process.execPath,['scripts/resolve-departure-settings.cjs'],{env:{GITHUB_OUTPUT:target,AM4_REPOSITORY_EXECUTE:'true',AM4_REPOSITORY_MAX_DEPARTURES:'1'},encoding:'utf8'});expect(await readFile(target,'utf8')).toBe('dry_run=false\nmax_departures=1\nautomation_mode=production\nsemi_automatic=false\nsemi_confirmed=false\n');expect(log).toContain('"dryRun":false');expect(log).toContain('variable:EXECUTE_INDIVIDUAL');}finally{await rm(dir,{recursive:true,force:true});}
+});
+
+test('semi-automatic workflow disables all game mutations until manual confirmation',async()=>{
+ const s=await readFile('.github/workflows/playwright.yml','utf8');
+ expect(s).toContain('confirm_semiautomatic_execution:');
+ expect(s).toContain("AM4_SEMI_AUTOMATIC: ${{ vars.SEMI_AUTOMATIC_MODE || 'false' }}");
+ for(const name of ['ENABLE_TICKET_PRICING_EXECUTION','ENABLE_ROUTE_EXECUTION','ENABLE_FUEL','ENABLE_MAINTENANCE','ENABLE_CAMPAIGN','ENABLE_DEPART']){
+  expect(s).toContain(`${name}: ${{ steps.departure_settings.outputs.dry_run == 'true' && 'false'`);
+ }
+ expect(s).not.toContain('aktifkan_random_delay');
 });
 
 test('main production workflow forwards the declared departure limit input instead of forcing twenty',async()=>{
