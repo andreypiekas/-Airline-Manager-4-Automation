@@ -3,6 +3,7 @@ import { DeparturePort } from './executor';
 import { AircraftSnapshot } from './types';
 import { DemandReader } from './reader';
 import { openFleetList,findFleetRoute } from './navigation';
+import { assertNoInteractiveChallenge } from '../utils/challenge-guard';
 
 /** Complete handler grammar observed in Actions 36917592989/36918147380 on 2026-10-01.
  * Only the native UI is clicked. No manual endpoint calls, parameters or cost-index edits.
@@ -16,9 +17,10 @@ export function verifiedDepartureHandler(callback:string,routeId:string):boolean
 export class PlaywrightDeparturePort implements DeparturePort {
   private prepared:{aircraft:AircraftSnapshot;handler:string}|null=null;
   constructor(private readonly page:Page,private readonly timeout=15000){}
-  async collect(){this.prepared=null;await openFleetList(this.page,this.timeout);return new DemandReader(this.page,this.timeout,true).collect();}
+  async collect(){this.prepared=null;await assertNoInteractiveChallenge(this.page,'departure:collect');await openFleetList(this.page,this.timeout);return new DemandReader(this.page,this.timeout,true).collect();}
   async prepare(expected:AircraftSnapshot){
     this.prepared=null;
+    await assertNoInteractiveChallenge(this.page,'departure:prepare');
     await openFleetList(this.page,this.timeout);await findFleetRoute(this.page,expected,this.timeout);
     const fresh=await new DemandReader(this.page,this.timeout,true).readReadyAircraftDetails(expected);
     const control=this.page.locator('#detailsAction #routeViewDepart');
@@ -34,6 +36,7 @@ export class PlaywrightDeparturePort implements DeparturePort {
     if(await details.locator('#ff-name').innerText()!==expected.registration||await control.count()!==1||
       !await control.isVisible()||!await control.isEnabled()||await control.getAttribute('onclick')!==prepared.handler||
       !verifiedDepartureHandler(prepared.handler,expected.routeId))throw Error('DEPARTURE_CONTEXT_CHANGED');
+    await assertNoInteractiveChallenge(this.page,'departure:before-click');
     const response=this.page.waitForResponse(r=>{
       try{const u=new URL(r.url());return u.pathname.endsWith('/route_depart.php')&&u.searchParams.get('id')===expected.routeId;}catch{return false;}
     },{timeout:this.timeout});
