@@ -27,8 +27,10 @@ test('observed VIP demand and automatic reference remain simulation-only', () =>
   const prices = planTicketPrices(a, true, now);
   expect(prices).toMatchObject({ automatic: { Y: 845, J: 2083, F: 3773 },
     proposed: { Y: 920, J: null, F: null }, status: 'recommendation_only', mutationAuthorized: false });
-  // Owner explicitly confirmed this aircraft's origin as GRU.
-  const optimization = analyzeOptimization(collection, optimizationConfig({}), {}, now);
+  // Explicit origin is supplied by configuration; there is no owner-specific built-in default.
+  const optimization = analyzeOptimization(collection, optimizationConfig({
+    AIRCRAFT_ORIGINS_JSON:'[{"aircraftId":"22316469","origin":"GRU"}]'
+  }), {}, now);
   expect(optimization.aircraft[0].operationalOrigin).toBe('GRU');
   expect(optimization.aircraft[0].route.decision).toBe('unavailable');
 });
