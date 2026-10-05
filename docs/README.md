@@ -1,28 +1,34 @@
 # Documentação técnica
 
-Este diretório contém a documentação operacional e de engenharia do **Airline Manager 4 Automation**.
+A documentação está dividida entre **referência atual** e **histórico**.
 
-## Referências atuais
+## Referência atual
 
 | Documento | Conteúdo |
 | --- | --- |
 | [CONFIGURATION.md](CONFIGURATION.md) | Secrets, inputs, Variables, defaults e limites |
-| [REPORTS_AND_TELEGRAM.md](REPORTS_AND_TELEGRAM.md) | Summary, artifacts, Telegram e troubleshooting |
-| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Estado real da implementação |
-| [DEMAND_MANAGER.md](DEMAND_MANAGER.md) | Demanda, pools, thresholds e coleta |
-| [PRODUCTION_DEPARTURES.md](PRODUCTION_DEPARTURES.md) | Decolagens individuais em produção |
-| [ROUTES_AND_PRICING.md](ROUTES_AND_PRICING.md) | Pricing, route review e reroute |
-| [SUPPLIES.md](SUPPLIES.md) | Fuel / CO₂ |
-| [RESERVATIONS_AND_COSTS.md](RESERVATIONS_AND_COSTS.md) | Reservas e evidência econômica |
-| [OCCUPANCY_AUDIT.md](OCCUPANCY_AUDIT.md) | Auditoria de passageiros observados |
-| [REFERENCE_DATA.md](REFERENCE_DATA.md) | Dados estáticos apenas como referência |
+| [DEMAND_MANAGER.md](DEMAND_MANAGER.md) | Demanda, pools, thresholds e decisão de departure |
+| [PRODUCTION_DEPARTURES.md](PRODUCTION_DEPARTURES.md) | Execução individual de decolagens |
+| [ROUTES_AND_PRICING.md](ROUTES_AND_PRICING.md) | Pricing PAX, route review e reroute |
+| [SUPPLIES.md](SUPPLIES.md) | Fuel e CO₂ |
+| [RESERVATIONS_AND_COSTS.md](RESERVATIONS_AND_COSTS.md) | Reservas e evidência econômica de candidatos |
+| [OCCUPANCY_AUDIT.md](OCCUPANCY_AUDIT.md) | Auditoria observacional de passageiros embarcados |
+| [REFERENCE_DATA.md](REFERENCE_DATA.md) | Catálogos e referências estáticas |
+| [REPORTS_AND_TELEGRAM.md](REPORTS_AND_TELEGRAM.md) | Summary, artifacts e Telegram |
+| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Estado técnico atual do projeto |
 
-## Documentos históricos
+Para uso diário, veja também [AUTOMACAO.md](../AUTOMACAO.md).
 
-Os documentos abaixo registram etapas anteriores e não são a fonte de configuração atual:
+## Histórico
 
-- [VALIDATION_2026-09-30.md](VALIDATION_2026-09-30.md)
-- [INSPECTION_2026-10-01.md](INSPECTION_2026-10-01.md)
-- [SIMULATION_VALIDATION.md](SIMULATION_VALIDATION.md)
+Relatórios de etapas anteriores ficam em [archive/](archive/). Eles servem como registro de evolução e **não** substituem a documentação atual.
 
-Em caso de divergência, prevalecem o [README principal](../README.md), [CONFIGURATION.md](CONFIGURATION.md) e [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+## Regra de precedência
+
+Em caso de divergência, considere nesta ordem:
+
+1. código da branch `main`;
+2. [CONFIGURATION.md](CONFIGURATION.md);
+3. [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md);
+4. demais documentos atuais;
+5. conteúdo de [archive/](archive/).
