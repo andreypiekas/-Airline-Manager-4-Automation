@@ -32,8 +32,9 @@ export function executionEnvironment(config:DemandConfig,env:NodeJS.ProcessEnv=p
   if(mutationDeadlineEpochMs!==undefined&&(!Number.isSafeInteger(mutationDeadlineEpochMs)||mutationDeadlineEpochMs<=0))throw Error('DEMAND_EXECUTION_DEADLINE_INVALID');
   return {dryRun:config.dryRun,maxDepartures,mutationDeadlineEpochMs};
 }
-export async function runDemandExecution(page:Page,config=readDemandConfig(),env:NodeJS.ProcessEnv=process.env,directory='test-results/demand'){
-  const settings=executionEnvironment(config,env),optimization=optimizationConfig(env);
+export async function runDemandExecution(page:Page,config=readDemandConfig(),env:NodeJS.ProcessEnv=process.env,directory='test-results/demand',airlineBases?:readonly string[]){
+  const settings=executionEnvironment(config,env),configuredOptimization=optimizationConfig(env);
+  const optimization=airlineBases?{...configuredOptimization,airlineBases:[...airlineBases]}:configuredOptimization;
   const blockedDepartureKeys=optimization.returnJournal?await readUnresolvedDepartureKeys(optimization.returnJournal.directory,optimization.returnJournal.scope):new Set<string>();
   await mkdir(directory,{recursive:true});
   // Exclusive marker survives repeated calls in this runner; Actions rejects every real rerun attempt.
