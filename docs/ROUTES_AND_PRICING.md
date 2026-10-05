@@ -43,8 +43,11 @@ Rotas entre duas bases ou sem base identificável exigem evidência adicional.
 
 A revisão pode ocorrer:
 
-- após retorno confirmado à própria base; ou
-- uma vez ao dia quando a aeronave é observada em solo na própria base.
+- após retorno confirmado à própria base;
+- uma vez ao dia quando a aeronave é observada em solo na própria base; ou
+- imediatamente quando o Demand Manager produz `hold_insufficient`.
+
+O gatilho de demanda tem prioridade sobre a fila normal e pode pesquisar a partir do aeroporto atual. Isso não transforma a falta de demanda em autorização de reroute: toda comparação econômica continua obrigatória.
 
 Estar apenas em solo não prova um retorno.
 
@@ -90,9 +93,9 @@ Uma troca exige, além da recomendação:
 - primeira tentativa do GitHub Actions run;
 - orçamento de tempo suficiente.
 
-Sugestões limitadas do jogo não são tratadas como prova do melhor destino global.
+Sugestões limitadas do jogo não são tratadas como prova do melhor destino global. O sistema escolhe a melhor alternativa **entre os candidatos que conseguiu inspecionar e comparar completamente**, ordenando pela margem conservadora verificada.
 
-Após um reroute confirmado, o pricing da rota anterior é descartado. A nova rota precisa fornecer um novo Auto Price antes de qualquer ajuste de tarifa.
+Após um reroute confirmado, o pricing da rota anterior é descartado. A nova rota precisa fornecer um novo Auto Price e terminar o pricing em estado `adjusted` ou `unchanged` antes de a aeronave poder decolar na mesma run. Caso contrário, ela permanece em `REROUTE_PRICING_NOT_VERIFIED`.
 
 ## Configuração
 
