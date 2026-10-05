@@ -53,8 +53,11 @@ export async function runDemandExecution(page:Page,config=readDemandConfig(),env
   };
   const adaptive=optimization.returnJournal?await loadAdaptiveDemandThresholds(optimization.returnJournal.directory,optimization.returnJournal.scope,config.minPercentage):new Map();
   const fuelHoldingLbsAtRunStart=!settings.dryRun?await verifiedFuelHoldingFromRun(directory):undefined;
+  const campaignGateRequired=(env.CAMPAIGN_GATE_REQUIRED||'false').trim().toLowerCase()==='true';
+  const campaignGateVerified=(env.CAMPAIGN_GATE_VERIFIED||'false').trim().toLowerCase()==='true';
   const report=await new IndividualDepartureExecutor(new PlaywrightDeparturePort(page),config,{...settings,
-    blockedDepartureKeys,fuelHoldingLbsAtRunStart},save,adaptive).run();
+    blockedDepartureKeys,fuelHoldingLbsAtRunStart,
+    campaignVerified:!campaignGateRequired||campaignGateVerified},save,adaptive).run();
   console.log('[IndividualDepartures] '+JSON.stringify(report.summary));
   if(!settings.dryRun&&optimization.returnJournal){
     const held=await appendDemandHoldObservations(optimization.returnJournal.directory,optimization.returnJournal.scope,env.GITHUB_RUN_ID||'',report);
