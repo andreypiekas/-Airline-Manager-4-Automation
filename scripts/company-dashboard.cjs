@@ -31,6 +31,7 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
     else if(e?.status==='held'&&['FUEL_STOCK_INSUFFICIENT_BY_VERIFIED_HISTORY','FUEL_REQUIREMENT_UNVERIFIED','FUEL_BUDGET_UNVERIFIED_AFTER_PRIOR_DEPARTURE'].includes(e.reason)){state='AGUARDANDO_RECURSO';reason=e.reason;}
     else if(uncertainPricingRouteIds.has(a.routeId)){state='PRECISA_REVISAR_PRECO';reason='PERSISTED_UNCERTAIN_PRICING_BLOCK';}
     else if(e?.status==='held'&&e.reason==='REROUTE_PRICING_NOT_VERIFIED'){state='PRECISA_REVISAR_PRECO';reason='REROUTE_PRICING_NOT_VERIFIED';}
+    else if(a.state==='unavailable'||a.detailsVerified===false){state='DADOS_INDISPONIVEIS';reason='DETAILS_UNVERIFIED';}
     else if(!a.operationalOrigin&&a.originResolution?.source==='unavailable'){state='PRECISA_REVISAR_ROTA';reason='ORIGIN_NOT_REGISTERED';}
     else if(e?.status==='held'&&e.demand?.decision==='hold_insufficient'){state='AGUARDANDO_DEMANDA';reason='DEMAND_INSUFFICIENT_VERIFIED';}
     else if(e?.status==='departed'){state='NORMAL';reason='DEPARTED_THIS_RUN';}
@@ -69,13 +70,13 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
         deferred:(routeResearch?.aircraft||[]).filter(a=>a?.trigger==='demand_insufficient'&&a?.status==='deferred_limit').length,
         unavailable:(routeResearch?.aircraft||[]).filter(a=>a?.trigger==='demand_insufficient'&&['unavailable','journal_unavailable','data_unavailable','origin_unavailable'].includes(a?.status)).length
       },
-      originUnavailable:aircraft.filter(a=>!a.operationalOrigin&&a.originResolution?.source==='unavailable').length},
+      originUnavailable:aircraft.filter(a=>a.detailsVerified===true&&!a.operationalOrigin&&a.originResolution?.source==='unavailable').length},
     pricing:{evaluated:pricing?.summary?.evaluated??semi?.fleet?.seen??null,adjusted:pricing?.summary?.adjusted??null,
       suggested:semi?.pricing?.wouldAdjust??null,recommendationOnly:semi?.pricing?.recommendationOnly??null,
       unchanged:pricing?.summary?.unchanged??semi?.pricing?.unchanged??null,unknown:pricing?.summary?.unknown??null,
       phaseHoldReason:pricing?.phaseHoldReason??null},
     operationalStates:{NORMAL:count('NORMAL'),AGUARDANDO_DEMANDA:count('AGUARDANDO_DEMANDA'),AGUARDANDO_RECURSO:count('AGUARDANDO_RECURSO'),
-      PRECISA_REVISAR_ROTA:count('PRECISA_REVISAR_ROTA'),PRECISA_REVISAR_PRECO:count('PRECISA_REVISAR_PRECO'),MANUTENCAO:count('MANUTENCAO'),PRONTA_PARA_DECOLAR:count('PRONTA_PARA_DECOLAR')},
+      DADOS_INDISPONIVEIS:count('DADOS_INDISPONIVEIS'),PRECISA_REVISAR_ROTA:count('PRECISA_REVISAR_ROTA'),PRECISA_REVISAR_PRECO:count('PRECISA_REVISAR_PRECO'),MANUTENCAO:count('MANUTENCAO'),PRONTA_PARA_DECOLAR:count('PRONTA_PARA_DECOLAR')},
     quarantines:{departure:uncertainDepartureKeys.size,route:uncertainRouteAircraftIds.size,pricingRoute:uncertainPricingRouteIds.size,supplyKinds:uncertainSupplyKinds.size},
     maintenance:{preventiveACheckRepairs:modules?.maintenance?.status??(log.includes('[Operacao] Manutencao automatica finalizada.')?'completed_observed':
       log.includes('[Operacao] Iniciando manutencao preventiva, A-checks e reparos...')?'started_observed':'not_observed'),
@@ -138,7 +139,7 @@ function markdown(d,states){
   '## Estados operacionais','',
   '| Estado | Quantidade |','| --- | ---: |',
   `| NORMAL | ${s.NORMAL} |`,`| AGUARDANDO_DEMANDA | ${s.AGUARDANDO_DEMANDA} |`,`| AGUARDANDO_RECURSO | ${s.AGUARDANDO_RECURSO} |`,
-  `| PRECISA_REVISAR_ROTA | ${s.PRECISA_REVISAR_ROTA} |`,`| PRECISA_REVISAR_PRECO | ${s.PRECISA_REVISAR_PRECO} |`,
+  `| DADOS_INDISPONIVEIS | ${s.DADOS_INDISPONIVEIS} |`,`| PRECISA_REVISAR_ROTA | ${s.PRECISA_REVISAR_ROTA} |`,`| PRECISA_REVISAR_PRECO | ${s.PRECISA_REVISAR_PRECO} |`,
   `| MANUTENCAO | ${s.MANUTENCAO} |`,`| PRONTA_PARA_DECOLAR | ${s.PRONTA_PARA_DECOLAR} |`,'',
   '### Aeronaves que exigem atenção','',
   attention.length?'| Aeronave | Estado | Motivo |\n| --- | --- | --- |\n'+attention.map(x=>`| ${safe(x.registration)} | ${x.state} | ${safe(x.reason)} |`).join('\n'):'Nenhuma aeronave fora do estado NORMAL neste run.','',
@@ -154,9 +155,10 @@ function selfTest(){
   {aircraftId:'3',registration:'C',routeId:'3',state:'ready'},{aircraftId:'4',registration:'D',routeId:'4',state:'ready'},
   {aircraftId:'5',registration:'E',routeId:'5',state:'ready'},{aircraftId:'6',registration:'F',routeId:'6',state:'ready'},
   {aircraftId:'7',registration:'G',routeId:'7',state:'ready'},{aircraftId:'8',registration:'H',routeId:'8',state:'ready'},
-  {aircraftId:'9',registration:'I',routeId:'9',state:'inflight',operationalOrigin:null,originResolution:{source:'unavailable',reason:'Nenhum aeroporto da rota pertence as bases configuradas.'}}]}));
+  {aircraftId:'9',registration:'I',routeId:'9',state:'inflight',detailsVerified:true,operationalOrigin:null,originResolution:{source:'unavailable',reason:'Nenhum aeroporto da rota pertence as bases configuradas.'}},
+  {aircraftId:'10',registration:'J',routeId:'10',state:'unavailable',detailsVerified:false,operationalOrigin:null,originResolution:{source:'unavailable',reason:'Detalhes indisponiveis.'}}]}));
  fs.writeFileSync(path.join(dir,'owned-airline-bases.json'),JSON.stringify({status:'observed',source:'research_main.php#hubSelect',reason:'LIVE_OWNED_HUBS_CROSSCHECKED_BY_AIRPORT_SOURCE_ID',effectiveBases:['XAP','GRU','DTW','TXL']}));
- fs.writeFileSync(path.join(dir,'demand-report.json'),JSON.stringify({summary:{fleetSeen:9}}));
+ fs.writeFileSync(path.join(dir,'demand-report.json'),JSON.stringify({summary:{fleetSeen:10}}));
  fs.writeFileSync(path.join(dir,'execution-report.json'),JSON.stringify({summary:{departed:0,held:3,unknown:1},entries:[
   {aircraftId:'1',status:'held',reason:'DEMAND_BELOW_THRESHOLD',demand:{decision:'hold_insufficient'}},
   {aircraftId:'3',status:'outcome_unknown',reason:'NO_RETRY_AFTER_CLICK_ATTEMPT:CONFIRM_STATE_NOT_INFLIGHT'},
@@ -177,7 +179,7 @@ function selfTest(){
   {type:'supply-uncertain',kind:'co2'}
  ]}));
  const {dashboard,states}=build(dir,path.join(dir,'missing.log'),path.join(dir,'journal.json'));
- assert.deepEqual(dashboard.bases,{status:'observed',effective:['XAP','GRU','DTW','TXL'],source:'research_main.php#hubSelect',reason:'LIVE_OWNED_HUBS_CROSSCHECKED_BY_AIRPORT_SOURCE_ID'});assert.equal(dashboard.fleet.seen,9);assert.equal(dashboard.operationalStates.AGUARDANDO_DEMANDA,1);assert.equal(dashboard.departures.fuelHeld,1);
+ assert.deepEqual(dashboard.bases,{status:'observed',effective:['XAP','GRU','DTW','TXL'],source:'research_main.php#hubSelect',reason:'LIVE_OWNED_HUBS_CROSSCHECKED_BY_AIRPORT_SOURCE_ID'});assert.equal(dashboard.fleet.seen,10);assert.equal(dashboard.operationalStates.AGUARDANDO_DEMANDA,1);assert.equal(dashboard.operationalStates.DADOS_INDISPONIVEIS,1);assert.equal(dashboard.departures.fuelHeld,1);
  assert.equal(dashboard.operationalStates.PRECISA_REVISAR_ROTA,5);assert.equal(dashboard.operationalStates.PRECISA_REVISAR_PRECO,1);assert.equal(dashboard.operationalStates.PRONTA_PARA_DECOLAR,1);assert.equal(dashboard.operationalStates.AGUARDANDO_RECURSO,1);
  assert.deepEqual(dashboard.routes.reviewDecisions,{keep:1,hold:1,wouldReroute:0,unavailable:0});
  assert.equal(dashboard.routes.originUnavailable,1);assert.equal(dashboard.pricing.phaseHoldReason,'PRICING_INITIAL_COLLECTION_INCOMPLETE');
@@ -200,6 +202,7 @@ function selfTest(){
  assert.deepEqual(states.find(x=>x.aircraftId==='7'),{aircraftId:'7',registration:'G',state:'PRECISA_REVISAR_ROTA',reason:'ROUTE_REVIEW_HOLD:NO_VERIFIED_VARIABLE_CYCLE_COMPARISON',observedFleetState:'ready'});
  assert.deepEqual(states.find(x=>x.aircraftId==='8'),{aircraftId:'8',registration:'H',state:'PRONTA_PARA_DECOLAR',reason:'READY_OBSERVED_NO_DEPARTURE_RESULT',observedFleetState:'ready'});
  assert.deepEqual(states.find(x=>x.aircraftId==='9'),{aircraftId:'9',registration:'I',state:'PRECISA_REVISAR_ROTA',reason:'ORIGIN_NOT_REGISTERED',observedFleetState:'inflight'});
+ assert.deepEqual(states.find(x=>x.aircraftId==='10'),{aircraftId:'10',registration:'J',state:'DADOS_INDISPONIVEIS',reason:'DETAILS_UNVERIFIED',observedFleetState:'unavailable'});
  fs.rmSync(dir,{recursive:true,force:true});console.log('company-dashboard self-test ok');
 }
 if(require.main===module){
