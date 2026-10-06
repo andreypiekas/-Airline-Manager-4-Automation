@@ -46,9 +46,14 @@ test('conflicting append-only runners reconcile without losing either event',asy
 });
 
 test('conflict reconciliation still rejects remote history that edited the restored prefix',async()=>{
-  const remote=server(), a=new GitHubReturnState(options(),remote.request), b=new GitHubReturnState(options('runner-2'),remote.request);
-  await a.restore();await b.restore();await append(options().directory,'flight-a');await a.save();
-  const body=remote.data;body.entries[0]={...body.entries[0],decision:'hold'};
+  const remote=server();
+  // Seed history before both runners restore so it is part of their immutable baseline.
+  remote.data.entries.push(event('seed'));
+  const a=new GitHubReturnState(options(),remote.request), b=new GitHubReturnState(options('runner-2'),remote.request);
+  await a.restore();await b.restore();
+  await append(options().directory,'flight-a');await a.save();
+  // Simulate an invalid remote edit to the entry both runners originally restored.
+  remote.data.entries[0]={...remote.data.entries[0],decision:'hold'};
   await append(options('runner-2').directory,'flight-b');
   await expect(b.save()).rejects.toThrow('STATE_CONFLICT_NON_APPEND_ONLY');
 });
