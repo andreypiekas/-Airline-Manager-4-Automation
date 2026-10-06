@@ -59,16 +59,25 @@ export class CampaignUtils {
         return locator.isVisible({ timeout }).catch(() => false);
     }
 
+    private async campaignPanelVisible(): Promise<boolean> {
+        return await this.isVisible(this.page.locator('button:visible').filter({ hasText: /New campaign/i }).first(), 300)
+            || await this.isVisible(this.page.locator('#dSelector:visible').first(), 300)
+            || await this.isVisible(this.page.locator('td:visible').filter({ hasText: /Eco-friendly Increases|Increase airline reputation|Campaign\s+\d+/i }).first(), 300);
+    }
+
     private async verifyActive(locator: Locator, stage: string): Promise<boolean> {
         await assertNoInteractiveChallenge(this.page, stage);
         if (await this.isVisible(locator, 800)) return true;
 
-        // Reopen Marketing once to obtain a fresh post-action view.
-        const marketingButton = this.page.getByRole('button', { name: /Marketing/i }).first();
-        if (await this.isVisible(marketingButton, 800)) {
-            await this.moveAndClick(marketingButton);
-            await GeneralUtils.randomSleep(500, 900);
-            await assertNoInteractiveChallenge(this.page, stage + ':after-refresh');
+        // If the Marketing content is already open, clicking the menu again can be
+        // physically obscured by the popup itself. Never toggle a known-open panel.
+        if (!await this.campaignPanelVisible()) {
+            const marketingButton = this.page.getByRole('button', { name: /Marketing/i }).first();
+            if (await this.isVisible(marketingButton, 800)) {
+                await this.moveAndClick(marketingButton);
+                await GeneralUtils.randomSleep(500, 900);
+                await assertNoInteractiveChallenge(this.page, stage + ':after-refresh');
+            }
         }
 
         return locator.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
@@ -81,10 +90,10 @@ export class CampaignUtils {
                 status: 'already_active', reason: 'ACTIVE_BEFORE_ACTION' };
         }
 
-        const newCampaignButton = this.page.getByRole('button', { name: /New campaign/i }).first();
+        const newCampaignButton = this.page.locator('button:visible').filter({ hasText: /New campaign/i }).first();
         await this.moveAndClick(newCampaignButton);
         await GeneralUtils.randomSleep(600, 1000);
-        const ecoFriendlyCell = this.page.getByRole('cell', { name: /Eco-friendly Increases/i }).first();
+        const ecoFriendlyCell = this.page.locator('td:visible').filter({ hasText: /Eco-friendly Increases/i }).first();
         await this.moveAndClick(ecoFriendlyCell);
         await GeneralUtils.randomSleep(600, 1000);
         const buyButtons = this.page.locator('button:visible').filter({ hasText: /^\$/ });
@@ -124,12 +133,12 @@ export class CampaignUtils {
         const newCampaignButton = this.page.getByRole('button', { name: /New campaign/i }).first();
         await this.moveAndClick(newCampaignButton);
         await GeneralUtils.randomSleep(600, 1000);
-        const increaseReputationCell = this.page.getByRole('cell', { name: /Increase airline reputation/i }).first();
+        const increaseReputationCell = this.page.locator('td:visible').filter({ hasText: /Increase airline reputation/i }).first();
         await this.moveAndClick(increaseReputationCell);
         await GeneralUtils.randomSleep(600, 1000);
 
         const durationOption = (Math.floor(this.campaignDuration / 4) || 1).toString();
-        const durationSelect = this.page.locator('#dSelector');
+        const durationSelect = this.page.locator('#dSelector:visible');
         await this.moveAndSelectOption(durationSelect, durationOption);
         await GeneralUtils.randomSleep(500, 800);
 
