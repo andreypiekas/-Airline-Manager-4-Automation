@@ -4,7 +4,7 @@ import { FleetUtils } from '../../utils/fleet.utils';
 import { runDemandSimulation } from '../../demand/run';
 import { readDemandConfig } from '../../demand/config';
 import { readFile } from 'node:fs/promises';
-import { findFleetRoute, routePageLimit } from '../../demand/navigation';
+import { findFleetRoute, openFleetList, routePageLimit } from '../../demand/navigation';
 
 interface FixtureOptions { operational?: boolean; missingCabin?: boolean; badDemand?: boolean; wrongIdentity?: boolean; pages?: number; badCount?: boolean; loop?: boolean; staleNext?: boolean; missingDetails?: boolean; unknownAuto?: boolean }
 async function fixture(page: Page, options: FixtureOptions = {}) {
@@ -107,6 +107,23 @@ test('route lookup rejects an unverified pagination control before extra navigat
   await fixture(page, { pages: 2, staleNext: true });
   await expect(findFleetRoute(page, { routeId: '999' } as any, 400)).rejects.toThrow('RESEARCH_PAGINATION_CONTROL_UNVERIFIED');
 });
+test('opening Fleet waits for a visible route instead of a hidden stale first DOM row', async ({page})=>{
+  await page.route('**/*',route=>route.abort());
+  await page.setContent(`
+    <button id="mapRoutes" onclick="hideAllWhenClick();menuFleet('Routes');">Fleet</button>
+    <script>
+      function hideAllWhenClick(){}
+      function menuFleet(){
+        const routeAction=document.createElement('div');routeAction.id='routeAction';
+        routeAction.innerHTML='<div id="routesContainer"><div id="routeMainList999" style="display:none"></div><div id="routeMainList101">visible</div></div>';
+        document.body.appendChild(routeAction);
+      }
+    </script>
+  `);
+  await openFleetList(page,500);
+  await expect(page.locator('#routeMainList101')).toBeVisible();
+});
+
 test('route page limit is derived only from validated observed totals', () => {
   expect(routePageLimit(34)).toBe(2); expect(routePageLimit(0)).toBe(1);
   expect(() => routePageLimit(-1)).toThrow('ROUTE_PAGE_LIMIT_INVALID');
