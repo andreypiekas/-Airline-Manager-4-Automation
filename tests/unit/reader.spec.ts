@@ -81,7 +81,7 @@ test('hidden rows from other AM4 pages are not treated as current-page fleet row
   const result=await new DemandReader(page,500).collect();
   expect(result.complete).toBe(true);
   expect(result.aircraft).toHaveLength(3);
-  expect(result.aircraft.find(a=>a.routeId==='103')).toMatchObject({aircraftId:'1203',state:'ready'});
+  expect(result.aircraft.find(a=>a.routeId==='103')).toMatchObject({aircraftId:'1103',state:'ready'});
 });
 
 test('route lookup paginates past hidden rows already retained in the DOM', async ({ page }) => {
