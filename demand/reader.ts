@@ -47,9 +47,9 @@ export class DemandReader {
       result.expectedRoutes = integerText(heading.match(/\((\d+)\)/)![1]);
       let maxPages=1;
       for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
-        const rows = this.page.locator('#routesContainer [id^="routeMainList"]:visible');
+        const rows = this.page.locator('#routesContainer [id^="routeMainList"]');
         if (result.expectedRoutes > 0) await rows.first().waitFor({ state: 'visible', timeout: this.timeout });
-        const cards: RouteCard[] = await rows.evaluateAll((elements, pattern) => elements.map(el => {
+        const cards: RouteCard[] = await rows.evaluateAll((elements, pattern) => elements.filter(el => !!el.getClientRects().length).map(el => {
           const routeId = el.id.replace(/^routeMainList/, '');
           const links = Array.from(el.querySelectorAll('a')).map(link => ({link,
             id:(link.getAttribute('onclick')||'').replace(/\s/g,'').match(new RegExp(pattern))?.[1]})).filter(a=>a.id);
@@ -116,7 +116,7 @@ export class DemandReader {
    */
   async readAircraftDetails(expected: AircraftSnapshot): Promise<AircraftSnapshot> {
     if (!/^[1-9]\d*$/.test(expected.aircraftId) || !/^[1-9]\d*$/.test(expected.routeId)) throw new Error('RESEARCH_IDENTITY_INVALID');
-    const row = this.page.locator(`#routeMainList${expected.routeId}:visible`);
+    const row = this.page.locator(`#routeMainList${expected.routeId}`);
     if (await row.count() !== 1 || !await row.isVisible() || !await row.evaluate(e => e.classList.contains('classPAX'))) throw new Error('RESEARCH_ROUTE_NOT_AVAILABLE');
     const callbacks=await row.locator('a').evaluateAll(es=>es.map(e=>e.getAttribute('onclick')||''));
     if(callbacks.filter(callback=>aircraftIdFromDetailsControl(callback)===expected.aircraftId).length!==1)throw new Error('RESEARCH_IDENTITY_INVALID');
