@@ -40,7 +40,7 @@ async function fixture(page: Page, options: FixtureOptions = {}) {
       '<div class="col-5"><span class="l-text">BBB</span></div><div class="col-5"><span class="l-text">AAA</span></div>'+
       '<div onclick="document.getElementById(\'seat-layout\').style.display=\'block\'">Seat layout</div>'+
       '<div id="seat-layout" style="display:none">'+['economy','business','first'].map((c,i)=>'<div><img src="assets/'+c+'_seat.png"><br>'+(i?0:100)+'<div>$<input value="9999"></div></div>').join('')+'</div>'+
-      '<div>Todays demand</div><div id="list-demand">'+['economy','business','first'].filter((c,i)=>!options.missingCabin||i!==1).map((c,i)=>'<div><img src="assets/'+c+'_seat.png"><br>'+(i?'0/200':options.badDemand?'90/80':'90/1000')+'</div>').join('')+'</div>';
+      '<div>Todays demand</div><div id="list-demand">'+['economy','business','first'].filter((c,i)=>!options.missingCabin||i!==1).map((c,i)=>'<div><img src="assets/'+c+'_seat.png"><br>'+(i?'0/200':options.badDemand?'90/not-a-number':'90/1000')+'</div>').join('')+'</div>';
       if(id===102) {
         d.querySelector('#routeViewDepart').remove();
         d.insertAdjacentHTML('beforeend', '<span id="timer">00:18:37</span><button onclick="/* fleet_details.php?id=1102&mode=reg& */">Rename aircraft</button><button onclick="/* fleet_details.php?id=102&mode=routeReg& */">Rename route</button>');
