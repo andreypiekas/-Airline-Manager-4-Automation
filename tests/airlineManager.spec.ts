@@ -339,6 +339,18 @@ test('All Operations', async ({ page }) => {
       const postReroutePricingBlockedAircraftIds=new Set(
         [...reroutedAircraftIds].filter(id=>!pricingVerifiedAircraftIds.has(id))
       );
+      const currentRouteFuelEvidence=new Map(
+        (simulation.candidateData.demandLabelCalibration?.samples||[])
+          .flatMap(sample=>{
+            const quote=sample.currentRouteQuote;
+            if(!quote||quote.aircraftId!==sample.aircraftId||quote.from!==sample.from||quote.to!==sample.to||
+              !Number.isSafeInteger(quote.fuelLbs)||quote.fuelLbs<=0)return [];
+            return [[sample.aircraftId,{
+              aircraftId:sample.aircraftId,routeId:sample.routeId,from:sample.from,to:sample.to,
+              fuelLbs:quote.fuelLbs,observedAt:quote.observedAt
+            }] as const];
+          })
+      );
       if(postReroutePricingBlockedAircraftIds.size){
         console.warn('[Departure] Reroute confirmado sem pricing fresco confirmado; aeronaves em HOLD: '+
           [...postReroutePricingBlockedAircraftIds].join(','));
@@ -348,7 +360,7 @@ test('All Operations', async ({ page }) => {
         CAMPAIGN_GATE_REQUIRED: campaignRequired ? 'true' : 'false',
         CAMPAIGN_GATE_VERIFIED: campaignVerifiedForDeparture ? 'true' : 'false',
         DEMAND_EXECUTION_MUTATION_DEADLINE_EPOCH_MS:String(departureMutationDeadlineEpochMs)
-      },'test-results/demand',{postReroutePricingBlockedAircraftIds});
+      },'test-results/demand',{postReroutePricingBlockedAircraftIds,currentRouteFuelEvidence});
     }
     return;
   }
