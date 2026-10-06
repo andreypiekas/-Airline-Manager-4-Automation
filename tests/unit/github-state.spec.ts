@@ -38,10 +38,19 @@ test('two fresh runners restore saved state from fixed branch',async()=>{
   expect(JSON.parse(await readFile(join(options('runner-2').directory,'return-journal.json'),'utf8')).entries).toEqual([event()]);
   expect(await second.save()).toBe('unchanged');expect(remote.calls.filter(c=>c.method==='PUT')).toHaveLength(1);
 });
-test('conflicting runner cannot overwrite newer state',async()=>{
+test('conflicting append-only runners reconcile without losing either event',async()=>{
   const remote=server(), a=new GitHubReturnState(options(),remote.request), b=new GitHubReturnState(options('runner-2'),remote.request);
   await a.restore();await b.restore();await append(options().directory,'flight-a');await append(options('runner-2').directory,'flight-b');await a.save();
-  await expect(b.save()).rejects.toThrow('STATE_HTTP_409');expect(remote.data.entries).toEqual([event('flight-a')]);
+  await expect(b.save()).resolves.toBe('saved');
+  expect(remote.data.entries).toEqual([event('flight-a'),event('flight-b')]);
+});
+
+test('conflict reconciliation still rejects remote history that edited the restored prefix',async()=>{
+  const remote=server(), a=new GitHubReturnState(options(),remote.request), b=new GitHubReturnState(options('runner-2'),remote.request);
+  await a.restore();await b.restore();await append(options().directory,'flight-a');await a.save();
+  const body=remote.data;body.entries[0]={...body.entries[0],decision:'hold'};
+  await append(options('runner-2').directory,'flight-b');
+  await expect(b.save()).rejects.toThrow('STATE_CONFLICT_NON_APPEND_ONLY');
 });
 for(const status of [404,403,500]) test(`remote failure ${status} never bootstraps empty state`,async()=>{
   const client=new GitHubReturnState(options(),async()=>new Response('{}',{status}));await expect(client.restore()).rejects.toThrow(`STATE_HTTP_${status}`);
