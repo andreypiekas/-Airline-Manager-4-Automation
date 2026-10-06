@@ -89,6 +89,25 @@ export class GitHubReturnState {
     await writeFile(join(directory, 'return-journal.json'), JSON.stringify(data) + '\n', { flag: 'wx', mode: 0o600 });
     await writeFile(join(directory, 'restored.json'), JSON.stringify({ repository: this.options.repository, scope: this.options.scope, branch: BRANCH, sha: response.sha, original: data }), { flag: 'wx', mode: 0o600 });
   }
+  private async readRemoteState():Promise<{sha:string;data:any}>{
+    const response=await this.api('GET');
+    if(response.type!=='file'||response.encoding!=='base64'||typeof response.content!=='string'||!/^[a-f0-9]{40}$/.test(response.sha)||response.size>MAX_BYTES)
+      throw new Error('STATE_RESPONSE_INVALID');
+    return {sha:response.sha,data:this.parse(Buffer.from(response.content,'base64').toString('utf8'))};
+  }
+  private mergeAppendOnly(base:any,local:any,remote:any){
+    const arrays=['entries','events','supplyObservations','holdObservations','uiHealthObservations'] as const;
+    const merged={...remote};
+    for(const key of arrays){
+      const b=base[key]||[],l=local[key]||[],r=remote[key]||[];
+      const samePrefix=(x:any[],prefix:any[])=>x.length>=prefix.length&&prefix.every((e,i)=>canonical(e)===canonical(x[i]));
+      if(!samePrefix(l,b)||!samePrefix(r,b))throw new Error('STATE_CONFLICT_NON_APPEND_ONLY');
+      const seen=new Set(r.map((e:any)=>canonical(e)));
+      const extras=l.slice(b.length).filter((e:any)=>!seen.has(canonical(e)));
+      merged[key]=[...r,...extras];
+    }
+    return this.parse(canonical(merged));
+  }
   async save(): Promise<'unchanged' | 'saved'> {
     const baseline = JSON.parse(await readFile(join(this.options.directory, 'restored.json'), 'utf8'));
     if (baseline.repository !== this.options.repository || baseline.scope !== this.options.scope || baseline.branch !== BRANCH || !/^[a-f0-9]{40}$/.test(baseline.sha)) throw new Error('STATE_BASELINE_INVALID');
@@ -101,9 +120,20 @@ export class GitHubReturnState {
     if (canonical(original) === canonical(current)) return 'unchanged';
     const content = JSON.stringify(current) + '\n';
     if (Buffer.byteLength(content) > MAX_BYTES) throw new Error('STATE_TOO_LARGE');
-    // SHA is mandatory: competing updates fail instead of losing another runner's events.
-    await this.api('PUT', { branch: BRANCH, sha: baseline.sha, message: 'chore: persist simulated return reviews [skip ci]', content: Buffer.from(content).toString('base64') });
-    return 'saved';
+    // SHA is mandatory: never overwrite unseen remote changes.
+    try{
+      await this.api('PUT', { branch: BRANCH, sha: baseline.sha, message: 'chore: persist simulated return reviews [skip ci]', content: Buffer.from(content).toString('base64') });
+      return 'saved';
+    }catch(error){
+      if((error as Error)?.message!=='STATE_HTTP_409')throw error;
+      // One bounded reconciliation retry is safe because both sides must still be strict append-only extensions of the restored baseline.
+      const remote=await this.readRemoteState();
+      const merged=this.mergeAppendOnly(original,current,remote.data);
+      const mergedContent=JSON.stringify(merged)+'\n';
+      if(Buffer.byteLength(mergedContent)>MAX_BYTES)throw new Error('STATE_TOO_LARGE');
+      await this.api('PUT',{branch:BRANCH,sha:remote.sha,message:'chore: reconcile return journal [skip ci]',content:Buffer.from(mergedContent).toString('base64')});
+      return 'saved';
+    }
   }
 }
 if (require.main === module) {
@@ -116,5 +146,10 @@ if (require.main === module) {
     else if (command === 'initialize') await client.initialize();
     else throw new Error('STATE_COMMAND_INVALID');
     console.log('[State] Operacao concluida.');
-  })().catch(() => { console.error('[State] Falha de persistencia; verificar estado remoto, escopo, permissoes e conflito. Nenhum segredo foi registrado.'); process.exitCode = 1; });
+  })().catch((error) => {
+    const code=(error as Error)?.message;
+    const safe=/^STATE_[A-Z0-9_]+$/.test(code||'')?code:'STATE_UNCLASSIFIED';
+    console.error('[State] Falha de persistencia: '+safe+'. Nenhum segredo foi registrado.');
+    process.exitCode = 1;
+  });
 }
