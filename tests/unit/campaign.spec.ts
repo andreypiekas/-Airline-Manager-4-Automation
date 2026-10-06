@@ -37,6 +37,7 @@ test('eco campaign is re-read and confirmed after purchase',async({page})=>{
   await page.setContent(`
    <button>Marketing</button>
    <button>New campaign</button>
+   <button style="display:none">$</button>
    <table id="campaigns"><tr><td>Eco-friendly Increases</td></tr></table>
    <button id="buyEco">$</button>
    <script>
@@ -54,6 +55,28 @@ test('eco campaign is re-read and confirmed after purchase',async({page})=>{
   });
   expect(evidence.airlineReputation.status).toBe('not_required');
   expect(evidence.allRequiredVerified).toBe(true);
+ });
+});
+
+test('hidden stale active-campaign rows do not mask the visible current campaign state',async({page})=>{
+ await withReputation('true',async()=>{
+  await page.setContent(`
+   <button>Marketing</button>
+   <table style="display:none">
+    <tr><td> Eco friendly</td></tr>
+    <tr><td> Airline reputation</td></tr>
+   </table>
+   <table>
+    <tr><td> Eco friendly</td></tr>
+    <tr><td> Airline reputation</td></tr>
+   </table>
+  `);
+  const evidence=await new CampaignUtils(page).createCampaign();
+  expect(evidence).toMatchObject({
+   allRequiredVerified:true,departureAuthorized:true,
+   ecoFriendly:{status:'already_active',verifiedActive:true},
+   airlineReputation:{status:'already_active',verifiedActive:true}
+  });
  });
 });
 
