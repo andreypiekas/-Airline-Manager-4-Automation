@@ -32,6 +32,47 @@ test('campaign verification accepts campaigns already active before departure',a
  });
 });
 
+test('campaign verification accepts active labels without glyphs and with hyphen variant',async({page})=>{
+ await withReputation('true',async()=>{
+  await page.setContent(`
+   <button>Marketing</button>
+   <table>
+    <tr><td>Eco-friendly</td></tr>
+    <tr><td>Airline reputation</td></tr>
+   </table>
+  `);
+  const evidence=await new CampaignUtils(page).createCampaign();
+  expect(evidence).toMatchObject({
+   allRequiredVerified:true,departureAuthorized:true,
+   ecoFriendly:{status:'already_active',verifiedActive:true},
+   airlineReputation:{status:'already_active',verifiedActive:true}
+  });
+ });
+});
+
+test('eco purchase accepts space-separated current AM4 option label',async({page})=>{
+ await withReputation('false',async()=>{
+  await page.setContent(`
+   <button>Marketing</button>
+   <button>New campaign</button>
+   <table id="campaigns"><tr><td>Eco friendly Increases</td></tr></table>
+   <button id="buyEco">$</button>
+   <script>
+    document.querySelector('#buyEco').onclick=()=>{
+      const row=document.createElement('tr');
+      row.innerHTML='<td>Eco friendly</td>';
+      document.querySelector('#campaigns').appendChild(row);
+    };
+   </script>
+  `);
+  const evidence=await new CampaignUtils(page).createCampaign();
+  expect(evidence.ecoFriendly).toMatchObject({
+   purchaseAttempted:true,verifiedActive:true,status:'purchased_verified'
+  });
+  expect(evidence.departureAuthorized).toBe(true);
+ });
+});
+
 test('eco campaign is re-read and confirmed after purchase',async({page})=>{
  await withReputation('false',async()=>{
   await page.setContent(`
