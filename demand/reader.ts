@@ -202,11 +202,11 @@ export class DemandReader {
               .filter(n => n.nodeType === Node.TEXT_NODE)
               .map(n => (n.textContent||'').trim())
               .filter(Boolean);
-            const direct = candidates.find(v => /^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(v));
-            const fallback = raw.match(/(?:^|\s)(\d{1,3}(?:,\d{3})*|\d+)(?:\s|$)/)?.[1] || '';
+            const direct = candidates.find(v => /^\d[\d,]*$/.test(v));
+            const fallback = raw.match(/(?:^|\s)(\d[\d,]*)(?:\s|$)/)?.[1] || '';
             out[key] = direct || fallback;
           } else {
-            const matches=[...raw.matchAll(/(\d{1,3}(?:,\d{3})*|\d+)\s*\/\s*(\d{1,3}(?:,\d{3})*|\d+)/g)];
+            const matches=[...raw.matchAll(/(\d[\d,]*)\s*\/\s*(\d[\d,]*)/g)];
             if(matches.length!==1) throw new Error('Demand format ambiguous');
             out[key]=matches[0][1]+'/'+matches[0][2];
           }
