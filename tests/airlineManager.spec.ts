@@ -215,13 +215,30 @@ test('All Operations', async ({ page }) => {
       console.log('[Operacao] Verificando e contratando campanhas...');
       recordOperationalModule('campaign','started_observed');
       const campaignUtils = new CampaignUtils(page);
-      const campaignMenu = page.locator('div:nth-child(5) > #mapMaint > img');
+      const marketingButton = page.getByRole('button', { name: /Marketing/i }).first();
+      const campaignMenuCandidates = page.locator('div:nth-child(5) > #mapMaint > img');
 
       try {
         await closeOpenPanel('abrir campanhas');
-        await GeneralUtils.moveAndClick(page, campaignMenu, 20000);
-        await page.getByRole('button', { name: /Marketing/i })
-          .waitFor({ state: 'visible', timeout: 15000 });
+        if (!(await marketingButton.isVisible({ timeout: 500 }).catch(() => false))) {
+          let opened=false,lastReason='CAMPAIGN_MENU_NOT_VISIBLE';
+          const count=await campaignMenuCandidates.count();
+          for(let i=0;i<count;i++){
+            const candidate=campaignMenuCandidates.nth(i);
+            if(!(await candidate.isVisible({timeout:300}).catch(()=>false)))continue;
+            try{
+              await GeneralUtils.moveAndClick(page,candidate,5000);
+              await marketingButton.waitFor({ state:'visible',timeout:4000 });
+              opened=true;break;
+            }catch(error){
+              const reason=(error as Error)?.message||'UNCLASSIFIED';
+              if(reason==='INTERACTIVE_CHALLENGE_DETECTED_STOP')throw error;
+              lastReason=reason;
+              if(reason!=='UI_CONTROL_OBSCURED')break;
+            }
+          }
+          if(!opened)throw new Error('CAMPAIGN_MENU_OPEN_FAILED:'+lastReason);
+        }
 
         const evidence = await campaignUtils.createCampaign();
         await GeneralUtils.randomSleep(700, 1200);
