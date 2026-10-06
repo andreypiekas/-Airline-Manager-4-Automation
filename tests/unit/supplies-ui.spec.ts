@@ -16,10 +16,11 @@ async function fixture(page:Page,variant=''){
  await page.setContent(`<span id="headerAccount">100000</span><div id="smallMainMenu"><div onclick="hideAllWhenClick();popup('fuel.php','Fuel',false,false,true);"><div><span>Fuel</span></div></div></div><div><span id="popTitle" style="display:none">Fuel</span><button onclick="closePop();document.getElementById('rewardPopup').style.display='none';">Close</button></div><div id="rewardPopup"></div><button id="popBtn2"></button><div id="fuelMain" style="display:none"></div><script>
  const variant=${JSON.stringify(variant)};let kind='fuel';window.purchases=0;let amount=1000;let stock={fuel:1000,co2:1000};let cash=100000;
  function price(){return variant==='expensive'?2000:kind==='fuel'?500:100}
+ function priceClock(){return variant==='rollover-co2'&&kind==='co2'?'00:00:05':'00:15:00'}
  function $(s){return {val(){return document.querySelector(s).value},removeClass(){return this},addClass(){return this},hide(){return this}}}
  function playSound(){}function hideAllWhenClick(){}function closePop(){document.querySelector('#popTitle').style.display='none';document.querySelector('#fuelMain').style.display='none'}
  function render(){const unit=kind==='fuel'?'Lbs':'Quotas';const p=document.querySelector('#fuelMain');p.style.display='block';document.querySelector('#popTitle').style.display='block';document.querySelector('#headerAccount').textContent=String(cash);
- p.innerHTML='<div>'+(kind==='fuel'?'Current price':'Quota cost')+'</div><b>$ '+price()+'</b><div>PRICE CHANGE</div><span>00:15:00</span><div>CAPACITY</div><span>'+(10000-stock[kind])+' / 10000 '+unit+'</span><div>HOLDING</div><span>'+stock[kind]+' '+unit+'</span><div>TOTAL PRICE</div><span id="total">$'+price()+'</span><div>AMOUNT TO PURCHASE</div><input type="tel" id="amountInput" placeholder="Amount to purchase" value="1000"><button id="purchase">Purchase</button><div>'+(kind==='fuel'?'Fuel price per 1,000 Lbs':'Co2 quota cost per 1,000')+'</div>';
+ p.innerHTML='<div>'+(kind==='fuel'?'Current price':'Quota cost')+'</div><b>$ '+price()+'</b><div>PRICE CHANGE</div><span>'+priceClock()+'</span><div>CAPACITY</div><span>'+(10000-stock[kind])+' / 10000 '+unit+'</span><div>HOLDING</div><span>'+stock[kind]+' '+unit+'</span><div>TOTAL PRICE</div><span id="total">$'+price()+'</span><div>AMOUNT TO PURCHASE</div><input type="tel" id="amountInput" placeholder="Amount to purchase" value="1000"><button id="purchase">Purchase</button><div>'+(kind==='fuel'?'Fuel price per 1,000 Lbs':'Co2 quota cost per 1,000')+'</div>';
  document.querySelector('#purchase').setAttribute('onclick',variant==='callback'?'window.purchases++':kind==='fuel'?${JSON.stringify(purchaseCallback('fuel'))}:${JSON.stringify(purchaseCallback('co2'))});
  document.querySelector('#amountInput').onkeyup=()=>{document.querySelector('#total').textContent='$'+(Number(document.querySelector('#amountInput').value)*price()/1000)};
  document.querySelector('#popBtn2').setAttribute('onclick',"$('.popMenuBtn').removeClass('active');$(this).addClass('active');$('#detailsAction').hide();Ajax('co2.php','fuelMain',this,false,false);");}
@@ -30,6 +31,21 @@ async function fixture(page:Page,variant=''){
 async function execute(page:Page,dryRun:boolean){const dir=await mkdtemp(join(tmpdir(),'am4-supply-'));return {dir,run:()=>runSupplies(page,dryRun,env,dir,new SupplyPort(page,800))};}
 test('dry run quotes both supplies without a purchase',async({page})=>{await fixture(page);const {dir,run}=await execute(page,true);try{const r=await run();expect(r.entries.map(e=>e.status)).toEqual(['would_buy','would_buy']);expect(await page.evaluate(()=>(window as any).purchases)).toBe(0);}finally{await rm(dir,{recursive:true,force:true})}});
 test('production confirms both stocks and payments, rejects duplicate execution',async({page})=>{await fixture(page);const {dir,run}=await execute(page,false);try{const r=await run();expect(r.entries.map(e=>e.status)).toEqual(['purchased','purchased']);expect(r.entries[1].before.balance).toBe(95500);await expect(run()).rejects.toThrow();expect(await page.evaluate(()=>(window as any).purchases)).toBe(2);}finally{await rm(dir,{recursive:true,force:true})}});
+test('pre-click CO2 price rollover is a safe skip and never becomes an uncertain purchase',async({page})=>{
+ await fixture(page,'rollover-co2');
+ const {dir,run}=await execute(page,false);
+ try{
+  const report=await run();
+  expect(report.halted).toBe(false);
+  expect(report.entries[0]).toMatchObject({kind:'fuel',status:'purchased',reason:'STOCK_AND_PAYMENT_CONFIRMED'});
+  expect(report.entries[1]).toMatchObject({kind:'co2',status:'skipped',reason:'PRICE_ROLLOVER_BEFORE_PURCHASE'});
+  expect(await page.evaluate(()=>(window as any).purchases)).toBe(1);
+  const persisted=JSON.parse(await readFile(join(dir,'supply-report.json'),'utf8'));
+  expect(persisted.entries[1].status).toBe('skipped');
+  expect(persisted.entries[1].reason).toBe('PRICE_ROLLOVER_BEFORE_PURCHASE');
+ }finally{await rm(dir,{recursive:true,force:true})}
+});
+
 test('above-cap prices never touch purchase controls',async({page})=>{await fixture(page,'expensive');const {dir,run}=await execute(page,false);try{const r=await run();expect(r.entries.map(e=>e.reason)).toEqual(['PRICE_ABOVE_LIMIT','PRICE_ABOVE_LIMIT']);expect(await page.evaluate(()=>(window as any).purchases)).toBe(0);}finally{await rm(dir,{recursive:true,force:true})}});
 for(const variant of ['callback','unknown','httpfail'])test(`blocks unverified or uncertain purchase: ${variant}`,async({page})=>{await fixture(page,variant);const {dir,run}=await execute(page,false);try{await expect(run()).rejects.toThrow('SUPPLY_HALTED');const r=JSON.parse(await readFile(join(dir,'supply-report.json'),'utf8'));expect(r.halted).toBe(true);expect(r.entries).toHaveLength(1);expect(await page.evaluate(()=>(window as any).purchases)).toBe(variant==='callback'?0:1);}finally{await rm(dir,{recursive:true,force:true})}});
 test('CO2 parser accepts bounded explanatory text without guessing duplicate sections',()=>{
