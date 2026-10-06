@@ -16,8 +16,12 @@ export function parseDemand(text: CabinText): { remaining: Cabins; dailyTotal: C
   for (const k of CLASSES) {
     const pieces = text[k].trim().split('/');
     if (pieces.length !== 2) throw new Error('Esperada demanda restante/total.');
-    remaining[k] = integerText(pieces[0]); dailyTotal[k] = integerText(pieces[1]);
-    if (remaining[k] > dailyTotal[k]) throw new Error('Demanda restante maior que total.');
+    const first=integerText(pieces[0]),second=integerText(pieces[1]);
+    // AM4 has exposed the same pair in both visual orders across UI revisions.
+    // The semantic invariant is stable: remaining demand can never exceed the
+    // daily total. Equal values are orientation-independent.
+    remaining[k]=Math.min(first,second);
+    dailyTotal[k]=Math.max(first,second);
   }
   return { remaining, dailyTotal };
 }
