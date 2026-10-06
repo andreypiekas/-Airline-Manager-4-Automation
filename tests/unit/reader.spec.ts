@@ -94,6 +94,10 @@ test('route lookup paginates past hidden rows already retained in the DOM', asyn
     hidden.style.display='none';
     hidden.innerHTML='<span class="s-text">AAA - BBB</span><a href="#"><span>TEST-103</span></a><button id="listDepart103">Depart</button>';
     container.appendChild(hidden);
+    const next=document.querySelector('#routesContainer .pagination a')!;
+    next.setAttribute('onclick',"Ajax('routes.php?start=20&sort=','routeAction',this);");
+    const w=window as any,original=w.Ajax;
+    w.Ajax=(url:string,...args:any[])=>url==='routes.php?start=20&sort='?w.render(1):original(url,...args);
   });
   await findFleetRoute(page,{routeId:'103'} as any,500);
   await expect(page.locator('#routeMainList103')).toBeVisible();
