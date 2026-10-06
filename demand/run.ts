@@ -12,7 +12,7 @@ import { DemandReader } from './reader';
 import { writeDemandReport } from './report';
 import { DemandConfig, DemandReport } from './types';
 import { loadAdaptiveDemandThresholds } from './adaptive-threshold';
-import { appendFlightHistoryAnchors, appendObservedArrivals, readFlightHistoryContinuityDiagnostics, readFlightHistoryStitchDiagnostics, readLiveAnchoredFlightHistoryStitchDiagnostics } from '../optimization/return-journal';
+import { appendFlightHistoryAnchors, appendObservedArrivals, appendResolvedUncertainDepartures, readFlightHistoryContinuityDiagnostics, readFlightHistoryStitchDiagnostics, readLiveAnchoredFlightHistoryStitchDiagnostics } from '../optimization/return-journal';
 import { writeFile } from 'node:fs/promises';
 
 export async function runDemandSimulationDetailed(page: Page, config: DemandConfig = readDemandConfig(), reviews: Record<string, RouteReview> = {}) {
@@ -22,6 +22,8 @@ export async function runDemandSimulationDetailed(page: Page, config: DemandConf
   const research = researchConfig();
   const collection = await new DemandReader(page, 10000, true).collect();
   if(optimization.returnJournal){
+    const resolvedDepartures=await appendResolvedUncertainDepartures(optimization.returnJournal.directory,optimization.returnJournal.scope,collection);
+    if(resolvedDepartures)console.log('[History] Quarentenas de departure reconciliadas por estado live: '+resolvedDepartures+'.');
     const arrivals=await appendObservedArrivals(optimization.returnJournal.directory,optimization.returnJournal.scope,collection);
     if(arrivals)console.log('[History] Chegadas observadas acrescentadas: '+arrivals+'.');
   }
