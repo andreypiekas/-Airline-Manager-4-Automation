@@ -30,7 +30,11 @@ function detailFailureCode(error:unknown):string {
   if(message==='Registration mismatch')return 'REGISTRATION_MISMATCH';
   if(message==='Route mismatch')return 'ROUTE_MISMATCH';
   if(message==='Inflight direction mismatch')return 'INFLIGHT_DIRECTION_MISMATCH';
-  if(/Missing\/ambiguous cabin|Numero ausente|Numero fora|Esperada demanda|Demanda restante/i.test(message))return 'CABIN_OR_DEMAND_PARSE_UNVERIFIED';
+  if(/Cabin container ambiguous/i.test(message))return 'CABIN_CONTAINER_AMBIGUOUS';
+  if(/Missing\/ambiguous cabin/i.test(message))return 'CABIN_ICON_AMBIGUOUS';
+  if(/Demand format ambiguous|Esperada demanda/i.test(message))return 'DEMAND_FORMAT_UNVERIFIED';
+  if(/Numero ausente|Numero fora/i.test(message))return 'CABIN_NUMBER_UNVERIFIED';
+  if(/Demanda restante/i.test(message))return 'DEMAND_REMAINING_EXCEEDS_TOTAL';
   if(/Timeout|waiting for|expect\(/i.test(message))return 'DETAILS_UI_TIMEOUT';
   return 'DETAILS_UNCLASSIFIED';
 }
@@ -181,12 +185,32 @@ export class DemandReader {
     const text = await details.evaluate(el => {
       const readCabins = (selector: string, capacity: boolean) => {
         const out = { Y: '', J: '', F: '' };
+        const root = Array.from(el.querySelectorAll(selector))
+          .filter(node => !!(node as HTMLElement).getClientRects().length);
+        if (root.length !== 1) throw new Error('Cabin container ambiguous');
         for (const [key, file] of [['Y', 'economy_seat.png'], ['J', 'business_seat.png'], ['F', 'first_seat.png']] as const) {
-          const images = el.querySelectorAll(`${selector} img[src$="/${file}"]`);
+          const images = Array.from(root[0].querySelectorAll('img')).filter(img => {
+            if (!(img as HTMLElement).getClientRects().length) return false;
+            const src=(img.getAttribute('src')||'').split('?')[0].split('#')[0];
+            return src.endsWith('/'+file) || src===file || src.endsWith(file);
+          });
           if (images.length !== 1) throw new Error('Missing/ambiguous cabin');
-          const cell = images[0].parentElement!;
-          // Capacity is text directly in the seat cell; exclude ticket-price form controls.
-          out[key] = capacity ? Array.from(cell.childNodes).filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join('').trim() : (cell as HTMLElement).innerText.trim();
+          const cell = images[0].parentElement as HTMLElement | null;
+          if (!cell) throw new Error('Missing/ambiguous cabin');
+          const raw = cell.innerText.replace(/\s+/g,' ').trim();
+          if (capacity) {
+            const candidates = Array.from(cell.childNodes)
+              .filter(n => n.nodeType === Node.TEXT_NODE)
+              .map(n => (n.textContent||'').trim())
+              .filter(Boolean);
+            const direct = candidates.find(v => /^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(v));
+            const fallback = raw.match(/(?:^|\s)(\d{1,3}(?:,\d{3})*|\d+)(?:\s|$)/)?.[1] || '';
+            out[key] = direct || fallback;
+          } else {
+            const matches=[...raw.matchAll(/(\d{1,3}(?:,\d{3})*|\d+)\s*\/\s*(\d{1,3}(?:,\d{3})*|\d+)/g)];
+            if(matches.length!==1) throw new Error('Demand format ambiguous');
+            out[key]=matches[0][1]+'/'+matches[0][2];
+          }
         }
         return out;
       };
