@@ -34,6 +34,9 @@ export function executionEnvironment(config:DemandConfig,env:NodeJS.ProcessEnv=p
 }
 export interface DemandExecutionPrerequisites {
   postReroutePricingBlockedAircraftIds?:ReadonlySet<string>;
+  currentRouteFuelEvidence?:ReadonlyMap<string,{
+    aircraftId:string;routeId:string;from:string;to:string;fuelLbs:number;observedAt:string;
+  }>;
 }
 
 export async function runDemandExecution(
@@ -71,7 +74,8 @@ export async function runDemandExecution(
   const report=await new IndividualDepartureExecutor(new PlaywrightDeparturePort(page),config,{...settings,
     blockedDepartureKeys,fuelHoldingLbsAtRunStart,
     campaignVerified:!campaignGateRequired||campaignGateVerified,
-    postReroutePricingBlockedAircraftIds:prerequisites.postReroutePricingBlockedAircraftIds},save,adaptive).run();
+    postReroutePricingBlockedAircraftIds:prerequisites.postReroutePricingBlockedAircraftIds,
+    currentRouteFuelEvidence:prerequisites.currentRouteFuelEvidence},save,adaptive).run();
   console.log('[IndividualDepartures] '+JSON.stringify(report.summary));
   if(!settings.dryRun&&optimization.returnJournal){
     const held=await appendDemandHoldObservations(optimization.returnJournal.directory,optimization.returnJournal.scope,env.GITHUB_RUN_ID||'',report);
