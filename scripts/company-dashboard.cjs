@@ -14,7 +14,13 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
   const uncertainDepartureKeys=new Set(events.filter(x=>x?.type==='departure-uncertain'&&!resolvedUncertainDepartureIds.has(x.eventId)).map(x=>x.aircraftId+':'+x.routeId));
   const uncertainRouteAircraftIds=new Set(events.filter(x=>x?.type==='route-uncertain').map(x=>x.aircraftId));
   const uncertainPricingRouteIds=new Set(events.filter(x=>x?.type==='pricing-uncertain').map(x=>x.routeId));
-  const uncertainSupplyKinds=new Set(events.filter(x=>x?.type==='supply-uncertain').map(x=>x.kind));
+  const supplyObservations=Array.isArray(journal?.supplyObservations)?journal.supplyObservations:[];
+  const uncertainSupplyKinds=new Set();
+  for(const kind of ['fuel','co2']){
+    const latestUncertain=Math.max(0,...events.filter(x=>x?.type==='supply-uncertain'&&x.kind===kind).map(x=>Date.parse(x.observedAt)||0));
+    const latestVerified=Math.max(0,...supplyObservations.filter(x=>x?.kind===kind).map(x=>Date.parse(x.observedAt)||0));
+    if(latestUncertain&&latestVerified<=latestUncertain)uncertainSupplyKinds.add(kind);
+  }
   const aircraft=Array.isArray(fleet?.aircraft)?fleet.aircraft:[];
   const execBy=new Map((execution?.entries||[]).map(x=>[x.aircraftId,x]));
   const routeBy=new Map((routeExecution?.entries||[]).map(x=>[x.aircraftId,x]));
