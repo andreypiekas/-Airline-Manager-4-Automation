@@ -3,6 +3,9 @@ import {closeReadOnlyPopup} from '../optimization/cost-reference-reader';
 import {Commodity, SupplySnapshot} from './policy';
 import {assertNoInteractiveChallenge} from '../utils/challenge-guard';
 const normalize=(s:string)=>s.replace(/\s/g,'');
+export class SupplyPreMutationError extends Error {
+ constructor(readonly code:string){super(code);this.name='SupplyPreMutationError';}
+}
 export const purchaseCallback=(kind:Commodity)=>`Ajax('${kind}.php?mode=do&amount='+$('#amountInput').val(),'runme',this); playSound('currency_spend')`;
 export function parseAmount(text:string):number {
  const s=text.trim().replace(/^\$\s*/,'');
@@ -115,26 +118,37 @@ export class SupplyPort {
   return read();
  }
  async purchase(kind:Commodity,quantity:number,before:SupplySnapshot,quote:number){
-  await assertNoInteractiveChallenge(this.page,'supplies:before-purchase');
-  const {button,input}=await this.verifyControl(kind);
-  if(await input.inputValue()!==String(quantity))throw Error('SUPPLY_AMOUNT_CHANGED');
-  const fresh=await this.snapshot(kind);
-  if(JSON.stringify(fresh)!==JSON.stringify(before))throw Error('SUPPLY_SNAPSHOT_CHANGED');
-  // Avoid a market rollover while the native request is being dispatched.
-  const clock=(await this.page.locator('#fuelMain').innerText()).match(/PRICE CHANGE\s+(\d{2}):(\d{2}):(\d{2})/i);
-  if(!clock||Number(clock[1])*3600+Number(clock[2])*60+Number(clock[3])<10)throw Error('SUPPLY_PRICE_ROLLOVER');
-  const response=this.page.waitForResponse(r=>{
-   const u=new URL(r.url());return u.origin==='https://www.airlinemanager.com'&&u.pathname===`/${kind}.php`&&u.searchParams.get('mode')==='do'&&u.searchParams.get('amount')===String(quantity);
-  },{timeout:this.timeout}).catch(()=>null);
-  // No retries from this point. The caller has already persisted its intent.
-  await button.click({timeout:this.timeout});
-  const received=await response;if(!received||!received.ok())throw Error('SUPPLY_OUTCOME_UNKNOWN');
-  if(await received.finished())throw Error('SUPPLY_OUTCOME_UNKNOWN');
-  await this.open(kind);
-  const after=await this.snapshot(kind);
-  if(after.holding!==before.holding+quantity||after.remainingCapacity!==before.remainingCapacity-quantity||
-    Math.abs((before.balance-after.balance)-quote)>1)throw Error('SUPPLY_OUTCOME_UNKNOWN');
-  return after;
+  let mutationAttempted=false;
+  try{
+   await assertNoInteractiveChallenge(this.page,'supplies:before-purchase');
+   const {button,input}=await this.verifyControl(kind);
+   if(await input.inputValue()!==String(quantity))throw Error('SUPPLY_AMOUNT_CHANGED');
+   const fresh=await this.snapshot(kind);
+   if(JSON.stringify(fresh)!==JSON.stringify(before))throw Error('SUPPLY_SNAPSHOT_CHANGED');
+   // Avoid a market rollover while the native request is being dispatched.
+   const clock=(await this.page.locator('#fuelMain').innerText()).match(/PRICE CHANGE\s+(\d{2}):(\d{2}):(\d{2})/i);
+   if(!clock||Number(clock[1])*3600+Number(clock[2])*60+Number(clock[3])<10)throw Error('SUPPLY_PRICE_ROLLOVER');
+   const response=this.page.waitForResponse(r=>{
+    const u=new URL(r.url());return u.origin==='https://www.airlinemanager.com'&&u.pathname===`/${kind}.php`&&u.searchParams.get('mode')==='do'&&u.searchParams.get('amount')===String(quantity);
+   },{timeout:this.timeout}).catch(()=>null);
+   // From this point a click may have been delivered. Never retry automatically.
+   mutationAttempted=true;
+   await button.click({timeout:this.timeout});
+   const received=await response;if(!received||!received.ok())throw Error('SUPPLY_OUTCOME_UNKNOWN');
+   if(await received.finished())throw Error('SUPPLY_OUTCOME_UNKNOWN');
+   await this.open(kind);
+   const after=await this.snapshot(kind);
+   if(after.holding!==before.holding+quantity||after.remainingCapacity!==before.remainingCapacity-quantity||
+     Math.abs((before.balance-after.balance)-quote)>1)throw Error('SUPPLY_OUTCOME_UNKNOWN');
+   return after;
+  }catch(error){
+   if(!mutationAttempted){
+    const raw=error instanceof Error?error.message:'SUPPLY_PRE_MUTATION_UNCLASSIFIED';
+    const code=/^[A-Z0-9_:-]{1,120}$/.test(raw)?raw:'SUPPLY_PRE_MUTATION_UNCLASSIFIED';
+    throw new SupplyPreMutationError(code);
+   }
+   throw error;
+  }
  }
  async close(){await closeReadOnlyPopup(this.page,this.timeout);}
 }
