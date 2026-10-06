@@ -24,7 +24,9 @@ export async function openFleetList(page: Page, timeout: number) {
     if (previous) await expect.poll(() => previous.evaluate(e => e.isConnected),{timeout}).toBe(false);
   } finally { await previous?.dispose(); }
   await page.locator('#routesContainer').waitFor({state:'visible',timeout});
-  await page.locator('#routesContainer [id^="routeMainList"]:visible').first().waitFor({state:'visible',timeout});
+  await expect.poll(async()=>page.locator('#routesContainer [id^="routeMainList"]').evaluateAll(es =>
+    es.filter(e=>!!e.getClientRects().length).length
+  ),{timeout}).toBeGreaterThan(0);
   if (await page.locator('#newRouteInfo').isVisible()) throw new Error('RESEARCH_QUOTE_NOT_CLOSED');
 }
 
@@ -33,16 +35,18 @@ export async function findFleetRoute(page: Page, aircraft: AircraftSnapshot, tim
   const matchCount=heading.match(/^Routes\s*\((\d+)\)$/);
   if(!matchCount)throw new Error('RESEARCH_ROUTE_COUNT_UNAVAILABLE');
   const totalRoutes=Number(matchCount[1]);
-  const firstPageRows=await page.locator('#routesContainer [id^="routeMainList"]:visible').count();
+  const firstPageRows=await page.locator('#routesContainer [id^="routeMainList"]').evaluateAll(es =>
+    es.filter(e=>!!e.getClientRects().length).length
+  );
   if(totalRoutes>0&&firstPageRows<1)throw new Error('RESEARCH_ROUTE_COUNT_UNAVAILABLE');
   const maxPages=routePageLimit(totalRoutes,Math.max(1,firstPageRows));
   const seen = new Set<string>();
   for (let index=0; index<maxPages; index++) {
-    const rows = page.locator('#routesContainer [id^="routeMainList"]:visible');
-    const first = await rows.first().getAttribute('id');
+    const rows = page.locator('#routesContainer [id^="routeMainList"]');
+    const first = await rows.evaluateAll(es=>es.find(e=>!!e.getClientRects().length)?.id || null);
     if (!first || seen.has(first)) throw new Error('RESEARCH_PAGINATION_INVALID');
     seen.add(first);
-    const row = page.locator(`#routeMainList${aircraft.routeId}:visible`);
+    const row = page.locator(`#routeMainList${aircraft.routeId}`);
     if (await row.count() === 1 && await row.isVisible()) return;
     if(index===maxPages-1)throw new Error('RESEARCH_ROUTE_NOT_FOUND');
     const next = page.locator('#routesContainer .pagination').getByRole('link',{name:'Next',exact:true});
@@ -51,7 +55,7 @@ export async function findFleetRoute(page: Page, aircraft: AircraftSnapshot, tim
     const match = callback.match(/^Ajax\('routes\.php\?start=(\d+)&sort=','routeAction',this\);$/);
     if (!match || Number(match[1]) !== (index+1)*20) throw new Error('RESEARCH_PAGINATION_CONTROL_UNVERIFIED');
     await next.click({timeout});
-    await expect.poll(() => rows.first().getAttribute('id'),{timeout}).not.toBe(first);
+    await expect.poll(() => rows.evaluateAll(es=>es.find(e=>!!e.getClientRects().length)?.id || null),{timeout}).not.toBe(first);
   }
   throw new Error('RESEARCH_PAGINATION_LIMIT');
 }
