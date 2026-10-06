@@ -115,7 +115,7 @@ test('two identical verified fuel observations are enough for a conservative rou
 });
 
 test('fresh verified current-route quote prevents cold-route fuel deadlock without guessing consumption',async()=>{
- const initial=baseCollection();
+ const initial=collection();
  const aircraft=initial.aircraft[0];
  aircraft.flightHistory={status:'observed',observedAt:new Date().toISOString(),source:'inspected-aircraft-flight-history',complete:false,
   entries:[],comparisonReady:false,mutationAuthorized:false};
@@ -134,7 +134,7 @@ test('fresh verified current-route quote prevents cold-route fuel deadlock witho
 });
 
 test('stale or mismatched current-route fuel quote never bypasses fuel verification',async()=>{
- const initial=baseCollection(),aircraft=initial.aircraft[0];
+ const initial=collection(),aircraft=initial.aircraft[0];
  aircraft.flightHistory={status:'observed',observedAt:new Date().toISOString(),source:'inspected-aircraft-flight-history',complete:false,
   entries:[],comparisonReady:false,mutationAuthorized:false};
  const stale=new Map([[aircraft.aircraftId,{
