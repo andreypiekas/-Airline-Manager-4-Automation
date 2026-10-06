@@ -22,6 +22,10 @@ export interface ExecutionSettings {
   campaignVerified?: boolean;
   /** Aircraft rerouted in this run remain held until pricing on the new route is freshly verified. */
   postReroutePricingBlockedAircraftIds?: ReadonlySet<string>;
+  /** Fresh read-only current-route quote evidence collected earlier in this same run. */
+  currentRouteFuelEvidence?: ReadonlyMap<string,{
+    aircraftId:string;routeId:string;from:string;to:string;fuelLbs:number;observedAt:string;
+  }>;
 }
 export interface ExecutionEntry {
   aircraftId: string; registration: string; routeId: string; from: string; to: string;
@@ -33,6 +37,7 @@ export interface ExecutionEntry {
     fuelAvailableBefore:number;
     verifiedRouteFuelLbs:number|null;
     matchingHistorySamples:number;
+    fuelEvidenceSource:'history'|'current-route-quote'|null;
     trackingComplete:boolean;
   };
 }
@@ -61,6 +66,19 @@ function verifiedHistoricalFuelRequirement(a:AircraftSnapshot):{fuelLbs:number;s
   if(matching.length<2)return null;
   const values=[...new Set(matching.map(e=>e.fuelLbs))];
   return values.length===1?{fuelLbs:values[0],samples:matching.length}:null;
+}
+function verifiedCurrentRouteFuelRequirement(
+  a:AircraftSnapshot,
+  evidence:ExecutionSettings['currentRouteFuelEvidence'],
+  maxAgeSeconds:number,
+  now=Date.now()
+):{fuelLbs:number;samples:0}|null{
+  const e=evidence?.get(a.aircraftId);
+  if(!e||e.aircraftId!==a.aircraftId||e.routeId!==a.routeId||e.from!==a.from||e.to!==a.to||
+    !Number.isSafeInteger(e.fuelLbs)||e.fuelLbs<=0)return null;
+  const age=now-Date.parse(e.observedAt);
+  if(!Number.isFinite(age)||age<0||age>maxAgeSeconds*1000)return null;
+  return {fuelLbs:e.fuelLbs,samples:0};
 }
 
 /** No retries, bulk fallback, route mutations or financial modules. A report writer must persist BEFORE the click. */
@@ -153,7 +171,12 @@ export class IndividualDepartureExecutor {
       entry.demand=decision;
       if(decision.decision!=='would_depart'){entry.reason=decision.reason;continue;}
       entry.reason=decision.reason;
-      const fuelEvidence=verifiedHistoricalFuelRequirement(fresh);
+      const historicalFuelEvidence=verifiedHistoricalFuelRequirement(fresh);
+      const quoteFuelEvidence=historicalFuelEvidence?null:verifiedCurrentRouteFuelRequirement(
+        fresh,this.settings.currentRouteFuelEvidence,this.demand.maxAgeSeconds
+      );
+      const fuelEvidence=historicalFuelEvidence||quoteFuelEvidence;
+      const fuelEvidenceSource=historicalFuelEvidence?'history':quoteFuelEvidence?'current-route-quote':null;
       if(!this.settings.dryRun&&this.settings.fuelHoldingLbsAtRunStart!==undefined){
         const available=Math.max(0,this.settings.fuelHoldingLbsAtRunStart-fuelCommitted);
         entry.resourceEvidence={
@@ -161,7 +184,8 @@ export class IndividualDepartureExecutor {
           fuelCommittedBefore:fuelCommitted,
           fuelAvailableBefore:available,
           verifiedRouteFuelLbs:fuelEvidence?.fuelLbs??null,
-          matchingHistorySamples:fuelEvidence?.samples??0,
+          matchingHistorySamples:historicalFuelEvidence?.samples??0,
+          fuelEvidenceSource,
           trackingComplete:fuelTrackingComplete
         };
         if(!fuelTrackingComplete){entry.reason='FUEL_BUDGET_UNVERIFIED_AFTER_PRIOR_DEPARTURE';continue;}
