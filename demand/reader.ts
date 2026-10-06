@@ -190,7 +190,6 @@ export class DemandReader {
         if (root.length !== 1) throw new Error('Cabin container ambiguous');
         for (const [key, file] of [['Y', 'economy_seat.png'], ['J', 'business_seat.png'], ['F', 'first_seat.png']] as const) {
           const images = Array.from(root[0].querySelectorAll('img')).filter(img => {
-            if (!(img as HTMLElement).getClientRects().length) return false;
             const src=(img.getAttribute('src')||'').split('?')[0].split('#')[0];
             return src.endsWith('/'+file) || src===file || src.endsWith(file);
           });
