@@ -159,7 +159,7 @@ function selfTest(){
   {aircraftId:'10',registration:'J',routeId:'10',state:'unavailable',detailsVerified:false,operationalOrigin:null,originResolution:{source:'unavailable',reason:'Detalhes indisponiveis.'}},
   {aircraftId:'11',registration:'K',routeId:'11',state:'inflight',detailsVerified:false,operationalOrigin:null,originResolution:{source:'unavailable',reason:'Detalhes nao coletados nesta run.'}}]}));
  fs.writeFileSync(path.join(dir,'owned-airline-bases.json'),JSON.stringify({status:'observed',source:'research_main.php#hubSelect',reason:'LIVE_OWNED_HUBS_CROSSCHECKED_BY_AIRPORT_SOURCE_ID',effectiveBases:['XAP','GRU','DTW','TXL']}));
- fs.writeFileSync(path.join(dir,'demand-report.json'),JSON.stringify({summary:{fleetSeen:10}}));
+ fs.writeFileSync(path.join(dir,'demand-report.json'),JSON.stringify({summary:{fleetSeen:11}}));
  fs.writeFileSync(path.join(dir,'execution-report.json'),JSON.stringify({summary:{departed:0,held:3,unknown:1},entries:[
   {aircraftId:'1',status:'held',reason:'DEMAND_BELOW_THRESHOLD',demand:{decision:'hold_insufficient'}},
   {aircraftId:'3',status:'outcome_unknown',reason:'NO_RETRY_AFTER_CLICK_ATTEMPT:CONFIRM_STATE_NOT_INFLIGHT'},
