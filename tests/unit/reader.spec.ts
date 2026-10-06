@@ -66,6 +66,38 @@ test('reader matches inspected DOM, ignores ticket prices, reads remaining/total
 test('pagination reads every page once', async ({ page }) => {
   await fixture(page, { pages: 2 }); const r = await new DemandReader(page, 400).collect(); expect(r.complete).toBe(true); expect(r.aircraft).toHaveLength(3);
 });
+
+test('hidden rows from other AM4 pages are not treated as current-page fleet rows', async ({ page }) => {
+  await fixture(page, { pages: 2 });
+  await page.evaluate(() => {
+    const container=document.querySelector('#routesContainer')!;
+    const hidden=document.createElement('div');
+    hidden.id='routeMainList103';
+    hidden.className='row classPAX listDepartable';
+    hidden.style.display='none';
+    hidden.innerHTML='<span class="s-text">AAA - BBB</span><a href="#" onclick="playSound(\'neutral_click\');Ajax(\'fleet_details.php?id=1203\',\'detailsAction\');if(intro==0) {$(\'#routeAction\').hide();}"><span id="acRegList1203">TEST-103</span> - Test aircraft</a>Demand: 90 / 0 / 0 <button id="listDepart103">Depart</button>';
+    container.appendChild(hidden);
+  });
+  const result=await new DemandReader(page,500).collect();
+  expect(result.complete).toBe(true);
+  expect(result.aircraft).toHaveLength(3);
+  expect(result.aircraft.find(a=>a.routeId==='103')).toMatchObject({aircraftId:'1203',state:'ready'});
+});
+
+test('route lookup paginates past hidden rows already retained in the DOM', async ({ page }) => {
+  await fixture(page, { pages: 2 });
+  await page.evaluate(() => {
+    const container=document.querySelector('#routesContainer')!;
+    const hidden=document.createElement('div');
+    hidden.id='routeMainList103';
+    hidden.className='row classPAX listDepartable';
+    hidden.style.display='none';
+    hidden.innerHTML='<span class="s-text">AAA - BBB</span><a href="#"><span>TEST-103</span></a><button id="listDepart103">Depart</button>';
+    container.appendChild(hidden);
+  });
+  await findFleetRoute(page,{routeId:'103'} as any,500);
+  await expect(page.locator('#routeMainList103')).toBeVisible();
+});
 test('observed route count bounds pagination and ignores residual Next after all routes are collected', async ({ page }) => {
   await fixture(page, { pages: 2, staleNext: true });
   const r = await new DemandReader(page, 400).collect();
