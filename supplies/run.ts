@@ -4,7 +4,7 @@ import {join} from 'node:path';
 import {readDemandConfig} from '../demand/config';
 import {executionEnvironment} from '../demand/execute-run';
 import {Commodity,planPurchase,supplyConfig} from './policy';
-import {SupplyPort} from './port';
+import {SupplyPort,SupplyPreMutationError} from './port';
 import {optimizationConfig} from '../optimization/report';
 import {appendSupplyObservation,appendUncertainSupplyOperation,readUnresolvedSupplyKinds,unresolvedSupplyKinds,validateReturnJournal} from '../optimization/return-journal';
 import {adaptiveSupplyCap} from './adaptive-policy';
@@ -53,17 +53,29 @@ export async function runSupplies(page:Page,dryRun:boolean,env:NodeJS.ProcessEnv
    entry.reason='PRICE_AND_BUDGET_ACCEPTED';
    if(dryRun){entry.status='would_buy';await save();continue;}
    entry.status='attempting';await save();
-   entry.after=await port.purchase(kind,entry.plan.quantity,entry.before,entry.quotedCost);
+   try{
+    entry.after=await port.purchase(kind,entry.plan.quantity,entry.before,entry.quotedCost);
+   }catch(error){
+    if(error instanceof SupplyPreMutationError&&error.code==='SUPPLY_PRICE_ROLLOVER'){
+     entry.status='skipped';entry.reason='PRICE_ROLLOVER_BEFORE_PURCHASE';
+     entry.diagnostic=await port.diagnostic(kind).catch(()=>null);
+     await save();
+     continue;
+    }
+    throw error;
+   }
    entry.status='purchased';entry.reason='STOCK_AND_PAYMENT_CONFIRMED';await save();
   }
   await port.close();
  }catch(error){
   const raw=error instanceof Error?error.message:'UNCLASSIFIED';
-  const code=/^[A-Z0-9_:-]{1,120}$/.test(raw)?raw:'UNCLASSIFIED';
+  const code=error instanceof SupplyPreMutationError?error.code:(/^[A-Z0-9_:-]{1,120}$/.test(raw)?raw:'UNCLASSIFIED');
+  const preMutation=error instanceof SupplyPreMutationError;
   const entry=report.entries.at(-1);if(entry){
-   if(entry.status!=='attempting')entry.diagnostic=await port.diagnostic(entry.kind).catch(()=>null);
-   entry.reason=entry.status==='attempting'?'OUTCOME_UNKNOWN_NO_RETRY:'+code:'READ_OR_VALIDATION_FAILED:'+code;
-   entry.status=entry.status==='attempting'?'unknown':'unavailable';
+   if(entry.status!=='attempting'||preMutation)entry.diagnostic=await port.diagnostic(entry.kind).catch(()=>null);
+   entry.reason=preMutation?'READ_OR_VALIDATION_FAILED:'+code:
+     entry.status==='attempting'?'OUTCOME_UNKNOWN_NO_RETRY:'+code:'READ_OR_VALIDATION_FAILED:'+code;
+   entry.status=preMutation?'unavailable':entry.status==='attempting'?'unknown':'unavailable';
   }
   report.halted=true;await save();
   if(entry?.status==='unknown'&&!dryRun&&optimization.returnJournal){
