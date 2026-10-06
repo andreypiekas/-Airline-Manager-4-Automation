@@ -7,13 +7,13 @@ import { departureControlShape } from '../../demand/departure-control-evidence';
 
 const snapshot=(change:Partial<AircraftSnapshot>={}):AircraftSnapshot=>({aircraftId:'1',registration:'TEST',routeId:'10',routeLabel:'AAA - GRU',from:'AAA',to:'GRU',state:'ready',capacity:{Y:100,J:0,F:0},remaining:{Y:100,J:0,F:0},dailyTotal:{Y:1000,J:100,F:100},observedAt:new Date().toISOString(),...change});
 const collection=(a:AircraftSnapshot[],complete=true):CollectionResult=>({aircraft:a,complete,expectedRoutes:a.length,warnings:[]});
-function setup(options:{initial?:CollectionResult;fresh?:CollectionResult;prepared?:AircraftSnapshot;confirmed?:AircraftSnapshot|null;dryRun?:boolean;limit?:number;prepareFail?:boolean;clickFail?:boolean;collectFail?:boolean;saveFail?:boolean;mutationDeadlineEpochMs?:number;blockedDepartureKeys?:ReadonlySet<string>;fuelHoldingLbsAtRunStart?:number;campaignVerified?:boolean;postReroutePricingBlockedAircraftIds?:ReadonlySet<string>}={}) {
+function setup(options:{initial?:CollectionResult;fresh?:CollectionResult;prepared?:AircraftSnapshot;confirmed?:AircraftSnapshot|null;dryRun?:boolean;limit?:number;prepareFail?:boolean;clickFail?:boolean;collectFail?:boolean;saveFail?:boolean;mutationDeadlineEpochMs?:number;blockedDepartureKeys?:ReadonlySet<string>;fuelHoldingLbsAtRunStart?:number;campaignVerified?:boolean;postReroutePricingBlockedAircraftIds?:ReadonlySet<string>;currentRouteFuelEvidence?:ReadonlyMap<string,{aircraftId:string;routeId:string;from:string;to:string;fuelLbs:number;observedAt:string}>}={}) {
   let reads=0,clicks=0;const saved:ExecutionReport[]=[];
   const port:DeparturePort={collect:async()=>{reads++;if(options.collectFail)throw Error('loading');return options.initial??collection([snapshot()]);},
     prepare:async a=>{if(options.prepareFail)throw Error('unverified');return options.prepared??snapshot(a);},
     depart:async()=>{clicks++;if(options.clickFail)throw Error('timeout');},
     confirm:async a=>options.confirmed===null?null:options.confirmed??snapshot({...a,state:'inflight',onboard:{Y:88,J:0,F:0},timing:flightCountdownObservation(a.aircraftId,a.routeId,'01:00:00',new Date().toISOString())})};
-  const executor=new IndividualDepartureExecutor(port,readDemandConfig({}),{dryRun:options.dryRun??false,maxDepartures:options.limit??1,mutationDeadlineEpochMs:options.mutationDeadlineEpochMs,blockedDepartureKeys:options.blockedDepartureKeys,fuelHoldingLbsAtRunStart:options.fuelHoldingLbsAtRunStart,campaignVerified:options.campaignVerified,postReroutePricingBlockedAircraftIds:options.postReroutePricingBlockedAircraftIds},async r=>{if(options.saveFail&&r.entries.some(e=>e.status==='attempting'))throw Error('disk');saved.push(JSON.parse(JSON.stringify(r)));});
+  const executor=new IndividualDepartureExecutor(port,readDemandConfig({}),{dryRun:options.dryRun??false,maxDepartures:options.limit??1,mutationDeadlineEpochMs:options.mutationDeadlineEpochMs,blockedDepartureKeys:options.blockedDepartureKeys,fuelHoldingLbsAtRunStart:options.fuelHoldingLbsAtRunStart,campaignVerified:options.campaignVerified,postReroutePricingBlockedAircraftIds:options.postReroutePricingBlockedAircraftIds,currentRouteFuelEvidence:options.currentRouteFuelEvidence},async r=>{if(options.saveFail&&r.entries.some(e=>e.status==='attempting'))throw Error('disk');saved.push(JSON.parse(JSON.stringify(r)));});
   return {executor,saved,clicks:()=>clicks,reads:()=>reads};
 }
 test('persist intent before exactly one native click and confirm onboard separately from demand coverage',async()=>{
@@ -112,6 +112,39 @@ test('two identical verified fuel observations are enough for a conservative rou
  const r=await s.executor.run();
  expect(s.clicks()).toBe(1);
  expect(r.entries[0]).toMatchObject({status:'departed',resourceEvidence:{verifiedRouteFuelLbs:126220,matchingHistorySamples:2,trackingComplete:true}});
+});
+
+test('fresh verified current-route quote prevents cold-route fuel deadlock without guessing consumption',async()=>{
+ const initial=baseCollection();
+ const aircraft=initial.aircraft[0];
+ aircraft.flightHistory={status:'observed',observedAt:new Date().toISOString(),source:'inspected-aircraft-flight-history',complete:false,
+  entries:[],comparisonReady:false,mutationAuthorized:false};
+ const fresh={...aircraft,observedAt:new Date().toISOString()};
+ const evidence=new Map([[aircraft.aircraftId,{
+  aircraftId:aircraft.aircraftId,routeId:aircraft.routeId,from:aircraft.from,to:aircraft.to,
+  fuelLbs:12345,observedAt:new Date().toISOString()
+ }]]);
+ const s=setup({initial,prepared:fresh,fuelHoldingLbsAtRunStart:50000,currentRouteFuelEvidence:evidence});
+ const r=await s.executor.run();
+ expect(s.clicks()).toBe(1);
+ expect(r.entries[0].resourceEvidence).toMatchObject({
+  verifiedRouteFuelLbs:12345,matchingHistorySamples:0,fuelEvidenceSource:'current-route-quote'
+ });
+ expect(r.entries[0].status).toBe('departed');
+});
+
+test('stale or mismatched current-route fuel quote never bypasses fuel verification',async()=>{
+ const initial=baseCollection(),aircraft=initial.aircraft[0];
+ aircraft.flightHistory={status:'observed',observedAt:new Date().toISOString(),source:'inspected-aircraft-flight-history',complete:false,
+  entries:[],comparisonReady:false,mutationAuthorized:false};
+ const stale=new Map([[aircraft.aircraftId,{
+  aircraftId:aircraft.aircraftId,routeId:aircraft.routeId,from:aircraft.from,to:aircraft.to,
+  fuelLbs:12345,observedAt:new Date(Date.now()-3600_000).toISOString()
+ }]]);
+ const s=setup({initial,prepared:{...aircraft,observedAt:new Date().toISOString()},fuelHoldingLbsAtRunStart:50000,currentRouteFuelEvidence:stale});
+ const r=await s.executor.run();
+ expect(s.clicks()).toBe(0);
+ expect(r.entries[0]).toMatchObject({status:'held',reason:'FUEL_REQUIREMENT_UNVERIFIED'});
 });
 
 test('verified historical fuel evidence blocks a departure before the click when run stock is insufficient',async()=>{
