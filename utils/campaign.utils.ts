@@ -48,11 +48,11 @@ export class CampaignUtils {
     }
 
     private activeEcoLocator() {
-        return this.page.getByRole('cell', { name: ' Eco friendly', exact: true }).first();
+        return this.page.locator('td:visible').filter({ hasText: /^ Eco friendly$/ }).first();
     }
 
     private activeReputationLocator() {
-        return this.page.getByRole('cell', { name: ' Airline reputation', exact: true }).first();
+        return this.page.locator('td:visible').filter({ hasText: /^ Airline reputation$/ }).first();
     }
 
     private async isVisible(locator: Locator, timeout = 500): Promise<boolean> {
@@ -87,7 +87,12 @@ export class CampaignUtils {
         const ecoFriendlyCell = this.page.getByRole('cell', { name: /Eco-friendly Increases/i }).first();
         await this.moveAndClick(ecoFriendlyCell);
         await GeneralUtils.randomSleep(600, 1000);
-        const buyButton = this.page.getByRole('button', { name: '$' }).first();
+        const buyButtons = this.page.locator('button:visible').filter({ hasText: /^\$/ });
+        if (await buyButtons.count() !== 1) {
+            return { required: true, activeBefore: false, purchaseAttempted: false, verifiedActive: false,
+                status: 'unverified', reason: 'ECO_PURCHASE_CONTROL_NOT_UNIQUE_VISIBLE' };
+        }
+        const buyButton = buyButtons.first();
 
         try {
             await this.moveAndClick(buyButton);
@@ -129,7 +134,7 @@ export class CampaignUtils {
         await GeneralUtils.randomSleep(500, 800);
 
         const targetCampaignButton = this.page
-            .locator('tr:has(td:has-text("Campaign ' + this.campaignType + '")) .btn-danger')
+            .locator('tr:visible:has(td:has-text("Campaign ' + this.campaignType + '")) .btn-danger:visible')
             .first();
         try {
             await this.moveAndClick(targetCampaignButton);
