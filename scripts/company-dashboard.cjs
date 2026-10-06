@@ -22,6 +22,8 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
     if(latestUncertain&&latestVerified<=latestUncertain)uncertainSupplyKinds.add(kind);
   }
   const aircraft=Array.isArray(fleet?.aircraft)?fleet.aircraft:[];
+  const currentAircraftRouteKeys=new Set(aircraft.map(a=>a.aircraftId+':'+a.routeId));
+  const activeUncertainDepartureKeys=new Set([...uncertainDepartureKeys].filter(k=>currentAircraftRouteKeys.has(k)));
   const execBy=new Map((execution?.entries||[]).map(x=>[x.aircraftId,x]));
   const routeBy=new Map((routeExecution?.entries||[]).map(x=>[x.aircraftId,x]));
   const routeDecisionBy=new Map((candidateData?.routeDecisions||[]).map(x=>[x.aircraftId,x]));
@@ -30,7 +32,7 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
     let state='NORMAL',reason=a.state==='inflight'?'INFLIGHT_OBSERVED':'OBSERVED_WITHOUT_ACTION';
     if(a.issue&&/maintenance|repair|a-check|check/i.test(String(a.issue))){state='MANUTENCAO';reason='MAINTENANCE_ISSUE_OBSERVED';}
     else if(uncertainRouteAircraftIds.has(a.aircraftId)){state='PRECISA_REVISAR_ROTA';reason='PERSISTED_UNCERTAIN_ROUTE_BLOCK';}
-    else if(uncertainDepartureKeys.has(a.aircraftId+':'+a.routeId)){state='QUARENTENA_DECOLAGEM';reason='PERSISTED_UNCERTAIN_DEPARTURE_BLOCK';}
+    else if(activeUncertainDepartureKeys.has(a.aircraftId+':'+a.routeId)){state='QUARENTENA_DECOLAGEM';reason='PERSISTED_UNCERTAIN_DEPARTURE_BLOCK';}
     else if(r?.status==='held'){state='PRECISA_REVISAR_ROTA';reason='REROUTE_HELD:'+r.reason;}
     else if(r?.status==='outcome_unknown'){state='PRECISA_REVISAR_ROTA';reason='REROUTE_OUTCOME_UNKNOWN_NO_RETRY';}
     else if(e?.status==='outcome_unknown'){state='QUARENTENA_DECOLAGEM';reason='DEPARTURE_OUTCOME_UNKNOWN_NO_RETRY';}
@@ -85,7 +87,7 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
     operationalStates:{NORMAL:count('NORMAL'),AGUARDANDO_DEMANDA:count('AGUARDANDO_DEMANDA'),AGUARDANDO_RECURSO:count('AGUARDANDO_RECURSO'),
       DADOS_INDISPONIVEIS:count('DADOS_INDISPONIVEIS'),QUARENTENA_DECOLAGEM:count('QUARENTENA_DECOLAGEM'),ORIGEM_OPERACIONAL_INDEFINIDA:count('ORIGEM_OPERACIONAL_INDEFINIDA'),
       PRECISA_REVISAR_ROTA:count('PRECISA_REVISAR_ROTA'),PRECISA_REVISAR_PRECO:count('PRECISA_REVISAR_PRECO'),MANUTENCAO:count('MANUTENCAO'),PRONTA_PARA_DECOLAR:count('PRONTA_PARA_DECOLAR')},
-    quarantines:{departure:uncertainDepartureKeys.size,route:uncertainRouteAircraftIds.size,pricingRoute:uncertainPricingRouteIds.size,supplyKinds:uncertainSupplyKinds.size},
+    quarantines:{departure:activeUncertainDepartureKeys.size,route:uncertainRouteAircraftIds.size,pricingRoute:uncertainPricingRouteIds.size,supplyKinds:uncertainSupplyKinds.size},
     maintenance:{preventiveACheckRepairs:modules?.maintenance?.status??(log.includes('[Operacao] Manutencao automatica finalizada.')?'completed_observed':
       log.includes('[Operacao] Iniciando manutencao preventiva, A-checks e reparos...')?'started_observed':'not_observed'),
       evidence:modules?.maintenance?.evidence??null,
