@@ -105,9 +105,16 @@ test('parsers reject partial, locale-ambiguous and negative numbers', () => {
   expect(integerText('1,234')).toBe(1234);
   for (const t of ['12oops', '1.234', '-1', '1,2', '', 'NaN', '1e3']) expect(() => integerText(t)).toThrow();
   expect(parseCapacity({ Y: '99', J: '0', F: '0' })).toEqual({ Y: 99, J: 0, F: 0 });
-  expect(parseDemand({ Y: '34/993', J: '196/196', F: '83/83' }).remaining.Y).toBe(34);
+  expect(parseDemand({ Y: '34/993', J: '196/196', F: '83/83' })).toMatchObject({
+    remaining:{Y:34,J:196,F:83},dailyTotal:{Y:993,J:196,F:83}
+  });
+  expect(parseDemand({ Y: '993/34', J: '196/196', F: '83/83' })).toMatchObject({
+    remaining:{Y:34,J:196,F:83},dailyTotal:{Y:993,J:196,F:83}
+  });
+  expect(parseDemand({ Y: '35/34', J: '0/0', F: '0/0' })).toMatchObject({
+    remaining:{Y:34,J:0,F:0},dailyTotal:{Y:35,J:0,F:0}
+  });
   expect(() => parseDemand({ Y: '34', J: '0/0', F: '0/0' })).toThrow();
-  expect(() => parseDemand({ Y: '35/34', J: '0/0', F: '0/0' })).toThrow();
 });
 test('individual target validates identity and never clicks', () => {
   expect(individualDepartureSelector('123')).toBe('#routeMainList123 #listDepart123');
