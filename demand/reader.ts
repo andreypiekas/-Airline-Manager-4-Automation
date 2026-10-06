@@ -24,6 +24,7 @@ function detailFailureCode(error:unknown):string {
   if(message==='Invalid identity')return 'IDENTITY_INVALID';
   if(message==='Ambiguous aircraft link')return 'AIRCRAFT_LINK_AMBIGUOUS';
   if(message==='Unverified details callback')return 'DETAILS_CALLBACK_UNVERIFIED';
+  if(message==='DETAILS_CARD_NOT_VISIBLE')return 'DETAILS_CARD_NOT_VISIBLE';
   if(message==='Not ready / grounded')return 'READY_STATE_UNVERIFIED';
   if(message==='Inflight identity not confirmed')return 'INFLIGHT_IDENTITY_UNVERIFIED';
   if(message==='Registration mismatch')return 'REGISTRATION_MISMATCH';
@@ -145,7 +146,8 @@ export class DemandReader {
 
   private async readDetails(card: RouteCard, item: AircraftSnapshot): Promise<void> {
     if (!/^\d+$/.test(card.routeId) || !/^\d+$/.test(card.aircraftId)) throw new Error('Invalid identity');
-    const cardLocator = this.page.locator(`#routeMainList${card.routeId}:visible`);
+    const cardLocator = this.page.locator(`#routeMainList${card.routeId}`);
+    if (await cardLocator.count() !== 1 || !(await cardLocator.isVisible())) throw new Error('DETAILS_CARD_NOT_VISIBLE');
     const links = cardLocator.locator('a');
     const callbacks = await links.evaluateAll(es=>es.map(e=>e.getAttribute('onclick')||''));
     const matching = callbacks.map((callback,index)=>({index,id:aircraftIdFromDetailsControl(callback)})).filter(a=>a.id===card.aircraftId);
