@@ -63,6 +63,35 @@ test('reader matches inspected DOM, ignores ticket prices, reads remaining/total
   expect(JSON.stringify(result.aircraft[0].currentRouteFieldDiagnostics)).toContain('route-name');
   expect(result.aircraft[1].state).toBe('inflight'); expect(result.aircraft[1].onboard).toEqual({Y:40,J:0,F:0}); expect(await page.evaluate(() => (window as any).mutations)).toBe(0);
 });
+test('visible cabin and demand panels tolerate stale hidden copies and surrounding labels', async ({ page }) => {
+  await fixture(page);
+  await page.evaluate(() => {
+    const original=(window as any).show;
+    (window as any).show=(id:number)=>{
+      original(id);
+      const d=document.getElementById('detailsAction')!;
+      const staleSeats=d.querySelector('#seat-layout')!.cloneNode(true) as HTMLElement;
+      staleSeats.removeAttribute('id'); staleSeats.style.display='none';
+      const staleDemand=d.querySelector('#list-demand')!.cloneNode(true) as HTMLElement;
+      staleDemand.removeAttribute('id'); staleDemand.style.display='none';
+      d.append(staleSeats,staleDemand);
+      d.querySelectorAll('#seat-layout > div').forEach((el,i)=>{
+        const node=document.createTextNode(i===0?' Seats ':' Cabin ');
+        el.insertBefore(node,el.firstChild);
+      });
+      d.querySelectorAll('#list-demand > div').forEach(el=>{
+        el.insertBefore(document.createTextNode('Demand '),el.firstChild);
+        el.appendChild(document.createTextNode(' passengers'));
+      });
+    };
+  });
+  const result=await new DemandReader(page,500).collect();
+  expect(result.complete).toBe(true);
+  expect(result.aircraft[0]).toMatchObject({
+    state:'ready',capacity:{Y:100,J:0,F:0},remaining:{Y:90,J:0,F:0},dailyTotal:{Y:1000,J:200,F:200}
+  });
+});
+
 test('pagination reads every page once', async ({ page }) => {
   await fixture(page, { pages: 2 }); const r = await new DemandReader(page, 400).collect(); expect(r.complete).toBe(true); expect(r.aircraft).toHaveLength(3);
 });
