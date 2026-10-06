@@ -6,7 +6,7 @@ import { flightCountdownObservation } from '../../optimization/flight-timing';
 import { departureControlShape } from '../../demand/departure-control-evidence';
 
 const snapshot=(change:Partial<AircraftSnapshot>={}):AircraftSnapshot=>({aircraftId:'1',registration:'TEST',routeId:'10',routeLabel:'AAA - GRU',from:'AAA',to:'GRU',state:'ready',capacity:{Y:100,J:0,F:0},remaining:{Y:100,J:0,F:0},dailyTotal:{Y:1000,J:100,F:100},observedAt:new Date().toISOString(),...change});
-const collection=(a:AircraftSnapshot[],complete=true):CollectionResult=>({aircraft:a,complete,expectedRoutes:a.length,warnings:[]});
+const collection=(a:AircraftSnapshot[]=[snapshot()],complete=true):CollectionResult=>({aircraft:a,complete,expectedRoutes:a.length,warnings:[]});
 function setup(options:{initial?:CollectionResult;fresh?:CollectionResult;prepared?:AircraftSnapshot;confirmed?:AircraftSnapshot|null;dryRun?:boolean;limit?:number;prepareFail?:boolean;clickFail?:boolean;collectFail?:boolean;saveFail?:boolean;mutationDeadlineEpochMs?:number;blockedDepartureKeys?:ReadonlySet<string>;fuelHoldingLbsAtRunStart?:number;campaignVerified?:boolean;postReroutePricingBlockedAircraftIds?:ReadonlySet<string>;currentRouteFuelEvidence?:ReadonlyMap<string,{aircraftId:string;routeId:string;from:string;to:string;fuelLbs:number;observedAt:string}>}={}) {
   let reads=0,clicks=0;const saved:ExecutionReport[]=[];
   const port:DeparturePort={collect:async()=>{reads++;if(options.collectFail)throw Error('loading');return options.initial??collection([snapshot()]);},
