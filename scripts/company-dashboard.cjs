@@ -32,7 +32,7 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
     else if(uncertainPricingRouteIds.has(a.routeId)){state='PRECISA_REVISAR_PRECO';reason='PERSISTED_UNCERTAIN_PRICING_BLOCK';}
     else if(e?.status==='held'&&e.reason==='REROUTE_PRICING_NOT_VERIFIED'){state='PRECISA_REVISAR_PRECO';reason='REROUTE_PRICING_NOT_VERIFIED';}
     else if(a.state==='unavailable'){state='DADOS_INDISPONIVEIS';reason='DETAILS_UNVERIFIED';}
-    else if(!a.operationalOrigin&&a.originResolution?.source==='unavailable'){state='PRECISA_REVISAR_ROTA';reason='ORIGIN_NOT_REGISTERED';}
+    else if(a.detailsVerified===true&&!a.operationalOrigin&&a.originResolution?.source==='unavailable'){state='PRECISA_REVISAR_ROTA';reason='ORIGIN_NOT_REGISTERED';}
     else if(e?.status==='held'&&e.demand?.decision==='hold_insufficient'){state='AGUARDANDO_DEMANDA';reason='DEMAND_INSUFFICIENT_VERIFIED';}
     else if(e?.status==='departed'){state='NORMAL';reason='DEPARTED_THIS_RUN';}
     else if(rd?.decision==='hold'){state='PRECISA_REVISAR_ROTA';reason='ROUTE_REVIEW_HOLD:'+rd.reason;}
