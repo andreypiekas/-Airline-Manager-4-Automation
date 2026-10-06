@@ -28,7 +28,7 @@ export class DemandReader {
       result.expectedRoutes = integerText(heading.match(/\((\d+)\)/)![1]);
       let maxPages=1;
       for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
-        const rows = this.page.locator('#routesContainer [id^="routeMainList"]');
+        const rows = this.page.locator('#routesContainer [id^="routeMainList"]:visible');
         if (result.expectedRoutes > 0) await rows.first().waitFor({ state: 'visible', timeout: this.timeout });
         const cards: RouteCard[] = await rows.evaluateAll((elements, pattern) => elements.map(el => {
           const routeId = el.id.replace(/^routeMainList/, '');
@@ -80,7 +80,7 @@ export class DemandReader {
         }
         const firstId = cards[0]?.routeId;
         await next.click({ timeout: this.timeout });
-        await expect.poll(async () => this.page.locator('#routesContainer [id^="routeMainList"]').first().getAttribute('id'), { timeout: this.timeout }).not.toBe(`routeMainList${firstId}`);
+        await expect.poll(async () => this.page.locator('#routesContainer [id^="routeMainList"]:visible').first().getAttribute('id'), { timeout: this.timeout }).not.toBe(`routeMainList${firstId}`);
       }
       result.warnings.push('PAGINATION_LIMIT');
     } catch {
@@ -94,7 +94,7 @@ export class DemandReader {
    */
   async readAircraftDetails(expected: AircraftSnapshot): Promise<AircraftSnapshot> {
     if (!/^[1-9]\d*$/.test(expected.aircraftId) || !/^[1-9]\d*$/.test(expected.routeId)) throw new Error('RESEARCH_IDENTITY_INVALID');
-    const row = this.page.locator(`#routeMainList${expected.routeId}`);
+    const row = this.page.locator(`#routeMainList${expected.routeId}:visible`);
     if (await row.count() !== 1 || !await row.isVisible() || !await row.evaluate(e => e.classList.contains('classPAX'))) throw new Error('RESEARCH_ROUTE_NOT_AVAILABLE');
     const callbacks=await row.locator('a').evaluateAll(es=>es.map(e=>e.getAttribute('onclick')||''));
     if(callbacks.filter(callback=>aircraftIdFromDetailsControl(callback)===expected.aircraftId).length!==1)throw new Error('RESEARCH_IDENTITY_INVALID');
@@ -124,7 +124,7 @@ export class DemandReader {
 
   private async readDetails(card: RouteCard, item: AircraftSnapshot): Promise<void> {
     if (!/^\d+$/.test(card.routeId) || !/^\d+$/.test(card.aircraftId)) throw new Error('Invalid identity');
-    const cardLocator = this.page.locator(`#routeMainList${card.routeId}`);
+    const cardLocator = this.page.locator(`#routeMainList${card.routeId}:visible`);
     const links = cardLocator.locator('a');
     const callbacks = await links.evaluateAll(es=>es.map(e=>e.getAttribute('onclick')||''));
     const matching = callbacks.map((callback,index)=>({index,id:aircraftIdFromDetailsControl(callback)})).filter(a=>a.id===card.aircraftId);
