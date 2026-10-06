@@ -80,6 +80,27 @@ test('hidden stale active-campaign rows do not mask the visible current campaign
  });
 });
 
+test('open campaign panel never re-clicks an obscured Marketing menu',async({page})=>{
+ await withReputation('false',async()=>{
+  await page.setContent(`
+   <button id="marketing">Marketing</button>
+   <div id="cover" style="position:fixed;left:0;top:0;width:140px;height:50px;z-index:10"></div>
+   <button>New campaign</button>
+   <table id="campaigns"><tr><td>Eco-friendly Increases</td></tr></table>
+   <button id="buyEco">$</button>
+   <script>
+    document.querySelector('#buyEco').onclick=()=>{
+      const row=document.createElement('tr');row.innerHTML='<td> Eco friendly</td>';
+      document.querySelector('#campaigns').appendChild(row);
+    };
+   </script>
+  `);
+  const evidence=await new CampaignUtils(page).createCampaign();
+  expect(evidence.ecoFriendly).toMatchObject({status:'purchased_verified',verifiedActive:true});
+  expect(evidence.departureAuthorized).toBe(true);
+ });
+});
+
 test('reputation campaign is re-read and confirmed after purchase',async({page})=>{
  await withReputation('true',async()=>{
   process.env.CAMPAIGN_TYPE='1';process.env.CAMPAIGN_DURATION='4';
