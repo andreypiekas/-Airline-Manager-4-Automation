@@ -48,11 +48,15 @@ export class CampaignUtils {
     }
 
     private activeEcoLocator() {
-        return this.page.locator('td:visible').filter({ hasText: /^ Eco friendly$/ }).first();
+        return this.page.locator('td:visible')
+            .filter({ hasText: /^[^A-Za-z0-9]*Eco[\s-]+friendly\s*$/i })
+            .first();
     }
 
     private activeReputationLocator() {
-        return this.page.locator('td:visible').filter({ hasText: /^ Airline reputation$/ }).first();
+        return this.page.locator('td:visible')
+            .filter({ hasText: /^[^A-Za-z0-9]*Airline\s+reputation\s*$/i })
+            .first();
     }
 
     private async isVisible(locator: Locator, timeout = 500): Promise<boolean> {
@@ -62,7 +66,7 @@ export class CampaignUtils {
     private async campaignPanelVisible(): Promise<boolean> {
         return await this.isVisible(this.page.locator('button:visible').filter({ hasText: /New campaign/i }).first(), 300)
             || await this.isVisible(this.page.locator('#dSelector:visible').first(), 300)
-            || await this.isVisible(this.page.locator('td:visible').filter({ hasText: /Eco-friendly Increases|Increase airline reputation|Campaign\s+\d+/i }).first(), 300);
+            || await this.isVisible(this.page.locator('td:visible').filter({ hasText: /Eco[\s-]*friendly\s+Increases|Increase\s+airline\s+reputation|Campaign\s+\d+/i }).first(), 300);
     }
 
     private async verifyActive(locator: Locator, stage: string): Promise<boolean> {
@@ -93,7 +97,7 @@ export class CampaignUtils {
         const newCampaignButton = this.page.locator('button:visible').filter({ hasText: /New campaign/i }).first();
         await this.moveAndClick(newCampaignButton);
         await GeneralUtils.randomSleep(600, 1000);
-        const ecoFriendlyCell = this.page.locator('td:visible').filter({ hasText: /Eco-friendly Increases/i }).first();
+        const ecoFriendlyCell = this.page.locator('td:visible').filter({ hasText: /Eco[\s-]*friendly\s+Increases/i }).first();
         await this.moveAndClick(ecoFriendlyCell);
         await GeneralUtils.randomSleep(600, 1000);
         const buyButtons = this.page.locator('button:visible').filter({ hasText: /^\$/ });
@@ -133,7 +137,7 @@ export class CampaignUtils {
         const newCampaignButton = this.page.getByRole('button', { name: /New campaign/i }).first();
         await this.moveAndClick(newCampaignButton);
         await GeneralUtils.randomSleep(600, 1000);
-        const increaseReputationCell = this.page.locator('td:visible').filter({ hasText: /Increase airline reputation/i }).first();
+        const increaseReputationCell = this.page.locator('td:visible').filter({ hasText: /Increase\s+airline\s+reputation/i }).first();
         await this.moveAndClick(increaseReputationCell);
         await GeneralUtils.randomSleep(600, 1000);
 
