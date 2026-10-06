@@ -10,7 +10,8 @@ function build(dir='test-results/demand',logPath='test-results/bot.log',journalP
     uiHealth=read(dir,'ui-health.json'),challenge=read(dir,'challenge-detected.json'),semi=read(dir,'semi-automatic-summary.json'),runBudget=read(dir,'run-time-budget.json'),ownedBases=read(dir,'owned-airline-bases.json');
   const log=(()=>{try{return fs.readFileSync(logPath,'utf8')}catch{return ''}})();
   const journal=readPath(journalPath),events=Array.isArray(journal?.events)?journal.events:[];
-  const uncertainDepartureKeys=new Set(events.filter(x=>x?.type==='departure-uncertain').map(x=>x.aircraftId+':'+x.routeId));
+  const resolvedUncertainDepartureIds=new Set(events.filter(x=>x?.type==='departure-uncertain-resolved').map(x=>x.uncertainEventId));
+  const uncertainDepartureKeys=new Set(events.filter(x=>x?.type==='departure-uncertain'&&!resolvedUncertainDepartureIds.has(x.eventId)).map(x=>x.aircraftId+':'+x.routeId));
   const uncertainRouteAircraftIds=new Set(events.filter(x=>x?.type==='route-uncertain').map(x=>x.aircraftId));
   const uncertainPricingRouteIds=new Set(events.filter(x=>x?.type==='pricing-uncertain').map(x=>x.routeId));
   const uncertainSupplyKinds=new Set(events.filter(x=>x?.type==='supply-uncertain').map(x=>x.kind));
