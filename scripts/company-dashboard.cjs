@@ -186,14 +186,16 @@ function selfTest(){
   {type:'departure-uncertain',aircraftId:'2',routeId:'2'},
   {type:'route-uncertain',aircraftId:'3'},
   {type:'pricing-uncertain',routeId:'5'},
-  {type:'supply-uncertain',kind:'co2'}
+  {type:'supply-uncertain',kind:'co2',observedAt:'2026-01-01T00:00:00.000Z'}
+ ],supplyObservations:[
+  {type:'supply-observation',kind:'co2',observedAt:'2026-01-01T01:00:00.000Z'}
  ]}));
  const {dashboard,states}=build(dir,path.join(dir,'missing.log'),path.join(dir,'journal.json'));
  assert.deepEqual(dashboard.bases,{status:'observed',effective:['XAP','GRU','DTW','TXL'],source:'research_main.php#hubSelect',reason:'LIVE_OWNED_HUBS_CROSSCHECKED_BY_AIRPORT_SOURCE_ID'});assert.equal(dashboard.fleet.seen,11);assert.equal(dashboard.operationalStates.AGUARDANDO_DEMANDA,1);assert.equal(dashboard.operationalStates.DADOS_INDISPONIVEIS,1);assert.equal(dashboard.departures.fuelHeld,1);
  assert.equal(dashboard.operationalStates.PRECISA_REVISAR_ROTA,2);assert.equal(dashboard.operationalStates.QUARENTENA_DECOLAGEM,2);assert.equal(dashboard.operationalStates.ORIGEM_OPERACIONAL_INDEFINIDA,1);assert.equal(dashboard.operationalStates.PRECISA_REVISAR_PRECO,1);assert.equal(dashboard.operationalStates.PRONTA_PARA_DECOLAR,1);assert.equal(dashboard.operationalStates.AGUARDANDO_RECURSO,1);
  assert.deepEqual(dashboard.routes.reviewDecisions,{keep:1,hold:1,wouldReroute:0,unavailable:0});
  assert.equal(dashboard.routes.originUnavailable,1);assert.equal(dashboard.pricing.phaseHoldReason,'PRICING_INITIAL_COLLECTION_INCOMPLETE');
- assert.deepEqual(dashboard.quarantines,{departure:1,route:1,pricingRoute:1,supplyKinds:1});
+ assert.deepEqual(dashboard.quarantines,{departure:1,route:1,pricingRoute:1,supplyKinds:0});
  assert.equal(dashboard.maintenance.preventiveACheckRepairs,'completed_observed');assert.deepEqual(dashboard.maintenance.evidence,{evaluated:22,selected:1,bulkCheckExecuted:true,repairEligible:false});assert.equal(dashboard.campaign.status,'verified_active');assert.equal(dashboard.campaign.allRequiredVerified,true);assert.equal(dashboard.campaign.departureAuthorized,true);
  fs.writeFileSync(path.join(dir,'operational-modules.json'),JSON.stringify({schemaVersion:1,maintenance:{status:'held_safe',observedAt:'2026-01-01T00:00:00.000Z',evidence:{reason:'UI_CONTROL_OBSCURED',mutationAuthorized:false}}}));
  const held=build(dir,path.join(dir,'missing.log'),path.join(dir,'journal.json')).dashboard;
