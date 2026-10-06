@@ -120,6 +120,39 @@ test('uncertain departure is not confirmed but becomes a durable no-retry event'
   const saved=JSON.parse(await readFile(join(directory,'return-journal.json'),'utf8'));expect(saved.events[0]).toMatchObject({type:'departure-uncertain',aircraftId:'9',routeId:'99',result:'outcome_unknown',sourceRunId:'124'});expect((await readUnresolvedDepartureKeys(directory,'company-test',now)).has('9:99')).toBe(true);
 });
 
+test('strictly newer verified live state resolves an uncertain departure without rewriting history',async()=>{
+  await reviewWithReturnJournal(input(),options(),now);
+  const {appendUncertainDepartures,appendResolvedUncertainDepartures,readUnresolvedDepartureKeys}=await import('../../optimization/return-journal');
+  const report:any={entries:[{status:'outcome_unknown',aircraftId:'9',registration:'UNCERTAIN',routeId:'99',from:'AAA',to:'BBB',reason:'NO_RETRY_AFTER_CLICK_ATTEMPT:UNCLASSIFIED'}]};
+  expect(await appendUncertainDepartures(directory,'company-test','124',report,now)).toBe(1);
+  const observedAt='2026-09-30T11:10:00.000Z',later=new Date('2026-09-30T11:11:00.000Z');
+  const collection:any={complete:true,expectedRoutes:1,warnings:[],aircraft:[{
+    aircraftId:'9',registration:'UNCERTAIN',routeId:'99',routeLabel:'AAA - BBB',from:'AAA',to:'BBB',state:'ready',
+    capacity:{Y:100,J:0,F:0},remaining:{Y:90,J:0,F:0},dailyTotal:{Y:1000,J:0,F:0},observedAt,
+    departureControlShape:"Ajax('route_depart.php?id=<value>&ref=list&costIndex=<number>','<string>',this);"
+  }]};
+  expect(await appendResolvedUncertainDepartures(directory,'company-test',collection,later)).toBe(1);
+  expect((await readUnresolvedDepartureKeys(directory,'company-test',later)).has('9:99')).toBe(false);
+  const saved=JSON.parse(await readFile(join(directory,'return-journal.json'),'utf8'));
+  expect(saved.events).toEqual(expect.arrayContaining([
+    expect.objectContaining({type:'departure-uncertain',aircraftId:'9',routeId:'99'}),
+    expect.objectContaining({type:'departure-uncertain-resolved',uncertainEventId:'unc_124_9_99',aircraftId:'9',routeId:'99',result:'live_state_verified',liveState:'ready'})
+  ]));
+});
+
+test('stale or mismatched live evidence never resolves an uncertain departure',async()=>{
+  await reviewWithReturnJournal(input(),options(),now);
+  const {appendUncertainDepartures,appendResolvedUncertainDepartures,readUnresolvedDepartureKeys}=await import('../../optimization/return-journal');
+  const report:any={entries:[{status:'outcome_unknown',aircraftId:'9',registration:'UNCERTAIN',routeId:'99',from:'AAA',to:'BBB',reason:'NO_RETRY_AFTER_CLICK_ATTEMPT:UNCLASSIFIED'}]};
+  await appendUncertainDepartures(directory,'company-test','125',report,now);
+  const base:any={aircraftId:'9',registration:'UNCERTAIN',routeId:'99',routeLabel:'AAA - BBB',from:'AAA',to:'BBB',state:'ready',
+    capacity:{Y:100,J:0,F:0},remaining:{Y:90,J:0,F:0},dailyTotal:{Y:1000,J:0,F:0},
+    departureControlShape:'verified'};
+  expect(await appendResolvedUncertainDepartures(directory,'company-test',{complete:true,expectedRoutes:1,warnings:[],aircraft:[{...base,observedAt:now.toISOString()}]},new Date('2026-09-30T11:20:00Z'))).toBe(0);
+  expect(await appendResolvedUncertainDepartures(directory,'company-test',{complete:true,expectedRoutes:1,warnings:[],aircraft:[{...base,registration:'OTHER',observedAt:'2026-09-30T11:15:00Z'}]},new Date('2026-09-30T11:20:00Z'))).toBe(0);
+  expect((await readUnresolvedDepartureKeys(directory,'company-test',new Date('2026-09-30T11:20:00Z'))).has('9:99')).toBe(true);
+});
+
 test('verified supply observations append once per run and kind',async()=>{
  await reviewWithReturnJournal(input(),options(),now);const {appendSupplyObservation}=await import('../../optimization/return-journal');
  const snap={pricePer1000:500,holding:1000,remainingCapacity:2000,balance:3000};
