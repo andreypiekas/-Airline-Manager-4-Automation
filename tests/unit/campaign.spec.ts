@@ -83,11 +83,13 @@ test('hidden stale active-campaign rows do not mask the visible current campaign
 test('open campaign panel never re-clicks an obscured Marketing menu',async({page})=>{
  await withReputation('false',async()=>{
   await page.setContent(`
-   <button id="marketing">Marketing</button>
-   <div id="cover" style="position:fixed;left:0;top:0;width:140px;height:50px;z-index:10"></div>
-   <button>New campaign</button>
-   <table id="campaigns"><tr><td>Eco-friendly Increases</td></tr></table>
-   <button id="buyEco">$</button>
+   <button id="marketing" style="position:absolute;left:0;top:0;width:120px;height:36px">Marketing</button>
+   <div id="cover" style="position:absolute;left:0;top:0;width:120px;height:36px;z-index:10"></div>
+   <div style="margin-top:60px">
+    <button>New campaign</button>
+    <table id="campaigns"><tr><td>Eco-friendly Increases</td></tr></table>
+    <button id="buyEco">$</button>
+   </div>
    <script>
     document.querySelector('#buyEco').onclick=()=>{
       const row=document.createElement('tr');row.innerHTML='<td> Eco friendly</td>';
