@@ -155,8 +155,16 @@ export class CampaignUtils {
         console.log('Iniciando verificacao de campanhas...');
         await assertNoInteractiveChallenge(this.page, 'campaign:start');
         const marketingButton = this.page.getByRole('button', { name: /Marketing/i }).first();
-        await this.moveAndClick(marketingButton);
-        await GeneralUtils.randomSleep(700, 1200);
+        const campaignContentVisible =
+            await this.isVisible(this.activeEcoLocator(), 400) ||
+            await this.isVisible(this.activeReputationLocator(), 400) ||
+            await this.isVisible(this.page.getByRole('button', { name: /New campaign/i }).first(), 400);
+        if (!campaignContentVisible) {
+            await this.moveAndClick(marketingButton);
+            await GeneralUtils.randomSleep(700, 1200);
+        } else {
+            console.log('[Campaign] Painel de Marketing ja aberto; clique redundante ignorado.');
+        }
 
         const ecoFriendly = await this.ensureEcoFriendly();
         await GeneralUtils.randomSleep(500, 800);
