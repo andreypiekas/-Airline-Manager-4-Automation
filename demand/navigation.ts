@@ -33,16 +33,16 @@ export async function findFleetRoute(page: Page, aircraft: AircraftSnapshot, tim
   const matchCount=heading.match(/^Routes\s*\((\d+)\)$/);
   if(!matchCount)throw new Error('RESEARCH_ROUTE_COUNT_UNAVAILABLE');
   const totalRoutes=Number(matchCount[1]);
-  const firstPageRows=await page.locator('#routesContainer [id^="routeMainList"]').count();
+  const firstPageRows=await page.locator('#routesContainer [id^="routeMainList"]:visible').count();
   if(totalRoutes>0&&firstPageRows<1)throw new Error('RESEARCH_ROUTE_COUNT_UNAVAILABLE');
   const maxPages=routePageLimit(totalRoutes,Math.max(1,firstPageRows));
   const seen = new Set<string>();
   for (let index=0; index<maxPages; index++) {
-    const rows = page.locator('#routesContainer [id^="routeMainList"]');
+    const rows = page.locator('#routesContainer [id^="routeMainList"]:visible');
     const first = await rows.first().getAttribute('id');
     if (!first || seen.has(first)) throw new Error('RESEARCH_PAGINATION_INVALID');
     seen.add(first);
-    const row = page.locator(`#routeMainList${aircraft.routeId}`);
+    const row = page.locator(`#routeMainList${aircraft.routeId}:visible`);
     if (await row.count() === 1 && await row.isVisible()) return;
     if(index===maxPages-1)throw new Error('RESEARCH_ROUTE_NOT_FOUND');
     const next = page.locator('#routesContainer .pagination').getByRole('link',{name:'Next',exact:true});
