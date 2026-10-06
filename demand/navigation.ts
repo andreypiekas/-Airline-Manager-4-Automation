@@ -24,7 +24,7 @@ export async function openFleetList(page: Page, timeout: number) {
     if (previous) await expect.poll(() => previous.evaluate(e => e.isConnected),{timeout}).toBe(false);
   } finally { await previous?.dispose(); }
   await page.locator('#routesContainer').waitFor({state:'visible',timeout});
-  await page.locator('#routesContainer [id^="routeMainList"]').first().waitFor({state:'visible',timeout});
+  await page.locator('#routesContainer [id^="routeMainList"]:visible').first().waitFor({state:'visible',timeout});
   if (await page.locator('#newRouteInfo').isVisible()) throw new Error('RESEARCH_QUOTE_NOT_CLOSED');
 }
 
