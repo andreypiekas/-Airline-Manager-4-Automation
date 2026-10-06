@@ -22,6 +22,25 @@ O Summary apresenta uma visão curta da run, incluindo quando disponível:
 
 A frota inteira não precisa ser repetida quando não há ação necessária.
 
+### Estados operacionais
+
+Os estados do dashboard são diagnósticos operacionais, não sinônimos entre si:
+
+| Estado | Significado |
+| --- | --- |
+| `NORMAL` | aeronave observada sem ação pendente |
+| `PRONTA_PARA_DECOLAR` | pronta, mas a saída foi retida por algum gate da run |
+| `AGUARDANDO_DEMANDA` | demanda insuficiente verificada |
+| `AGUARDANDO_RECURSO` | combustível/recurso necessário não pôde ser comprovado |
+| `DADOS_INDISPONIVEIS` | detalhes da aeronave não puderam ser verificados; não implica problema de rota |
+| `QUARENTENA_DECOLAGEM` | departure anterior teve resultado incerto ou quarentena persistente; sem retry automático |
+| `ORIGEM_OPERACIONAL_INDEFINIDA` | a origem exigida para revisão/reroute não pôde ser resolvida; não impede por si só a decolagem pela rota existente |
+| `PRECISA_REVISAR_ROTA` | existe evidência específica de problema/HOLD na revisão ou execução de reroute |
+| `PRECISA_REVISAR_PRECO` | pricing exige revisão ou está em quarentena |
+| `MANUTENCAO` | evidência de manutenção/reparo exige atenção |
+
+Assim, `PRECISA_REVISAR_ROTA` não deve ser usado como categoria genérica para qualquer ausência de dados, origem desconhecida ou quarantine de departure.
+
 ## Artifact demand-report
 
 Retenção padrão do workflow: 7 dias.
