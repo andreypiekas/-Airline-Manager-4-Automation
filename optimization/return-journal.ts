@@ -12,6 +12,7 @@ interface Entry { aircraftId: string; origin: string; flightId: string; reviewed
   reviewEvidence?: { trigger:'return'|'daily'|'demand'; reviewedRouteId:string; selectedRouteId:string|null; result:CompletedDecision; routePerformance:RoutePerformanceEvidence[] } }
 export interface FlightHistoryAnchorEvent { eventId:string; type:'flight-history-anchor'; aircraftId:string; registration:string; observedAt:string; cycles:number; rows:Array<{relativeTime:string;from:string;to:string;co2Quotas:number;onboard:{Y:number;J:number;F:number};fuelLbs:number;revenue:number}> }
 export interface UncertainDepartureEvent { eventId:string; type:'departure-uncertain'; aircraftId:string; registration:string; routeId:string; from:string; to:string; observedAt:string; result:'outcome_unknown'; reason:string; sourceRunId:string }
+export interface ResolvedUncertainDepartureEvent { eventId:string; type:'departure-uncertain-resolved'; uncertainEventId:string; aircraftId:string; registration:string; routeId:string; from:string; to:string; observedAt:string; result:'live_state_verified'; liveState:'ready'|'inflight'; reason:'STRICTLY_NEWER_VERIFIED_LIVE_STATE' }
 export interface UncertainSupplyEvent { eventId:string; type:'supply-uncertain'; kind:'fuel'|'co2'; observedAt:string; result:'outcome_unknown'; reason:string; sourceRunId:string; pricePer1000:number; quantity:number; quotedCost:number }
 export interface UncertainRouteEvent { eventId:string; type:'route-uncertain'; aircraftId:string; registration:string; previousRouteId:string; previousFrom:string; previousTo:string; targetFrom:string; targetTo:string; targetAirportId:string; observedAt:string; result:'outcome_unknown'; reason:'NO_RETRY_AFTER_ROUTE_MUTATION_ATTEMPT'; sourceRunId:string }
 export interface UncertainPricingEvent { eventId:string; type:'pricing-uncertain'; aircraftId:string; registration:string; routeId:string; observedAt:string; result:'outcome_unknown'; reason:'NO_RETRY_AFTER_PRICE_SAVE_ATTEMPT'; sourceRunId:string; before:{Y:number;J:number;F:number}; desired:{Y:number;J:number;F:number} }
@@ -20,7 +21,7 @@ export interface DepartureHistoryEvent { eventId:string; type:'departure'; aircr
 export interface SupplyObservationEvent { eventId:string; type:'supply-observation'; kind:'fuel'|'co2'; observedAt:string; pricePer1000:number; holding:number; remainingCapacity:number; balance:number }
 export interface UiHealthObservation { eventId:string; type:'ui-health'; observedAt:string; status:'healthy'; surfaces:string[] }
 export interface DemandHoldObservation { eventId:string; type:'demand-hold'; aircraftId:string; routeId:string; observedAt:string; occupancyPercentage:number; reason:'hold_insufficient' }
-export interface Journal { schemaVersion: 1; scope: string; entries: Entry[]; events?:Array<DepartureHistoryEvent|FlightHistoryAnchorEvent|UncertainDepartureEvent|UncertainSupplyEvent|UncertainRouteEvent|UncertainPricingEvent|ArrivalObservationEvent>; supplyObservations?:SupplyObservationEvent[]; holdObservations?:DemandHoldObservation[]; uiHealthObservations?:UiHealthObservation[] }
+export interface Journal { schemaVersion: 1; scope: string; entries: Entry[]; events?:Array<DepartureHistoryEvent|FlightHistoryAnchorEvent|UncertainDepartureEvent|ResolvedUncertainDepartureEvent|UncertainSupplyEvent|UncertainRouteEvent|UncertainPricingEvent|ArrivalObservationEvent>; supplyObservations?:SupplyObservationEvent[]; holdObservations?:DemandHoldObservation[]; uiHealthObservations?:UiHealthObservation[] }
 export interface JournalOptions {
   /** Durable directory supplied by the caller; ephemeral Actions runners require explicit transport. */
   directory: string;
@@ -217,7 +218,11 @@ export async function readLiveAnchoredFlightHistoryStitchDiagnostics(directory:s
  return liveAnchoredFlightHistoryStitchDiagnostics(journal,aircraft,now);
 }
 const validUncertainDepartureEvent=(v:unknown,now:Date):v is UncertainDepartureEvent=>{if(!v||typeof v!=='object')return false;const x=v as UncertainDepartureEvent;return Object.keys(x).sort().join(',')==='aircraftId,eventId,from,observedAt,reason,registration,result,routeId,sourceRunId,to,type'&&validId(x.eventId)&&x.type==='departure-uncertain'&&validId(x.aircraftId)&&typeof x.registration==='string'&&x.registration.length>0&&x.registration.length<=100&&validId(x.routeId)&&validOrigin(x.from)&&validOrigin(x.to)&&x.from!==x.to&&typeof x.observedAt==='string'&&Number.isFinite(Date.parse(x.observedAt))&&Date.parse(x.observedAt)<=now.getTime()&&x.result==='outcome_unknown'&&/^[A-Z0-9_:-]{1,160}$/.test(x.reason)&&validId(x.sourceRunId);};
-export function unresolvedDepartureKeys(journal:Journal):ReadonlySet<string>{return new Set((journal.events||[]).filter((e):e is UncertainDepartureEvent=>e.type==='departure-uncertain').map(e=>e.aircraftId+':'+e.routeId));}
+const validResolvedUncertainDepartureEvent=(v:unknown,now:Date):v is ResolvedUncertainDepartureEvent=>{if(!v||typeof v!=='object')return false;const x=v as ResolvedUncertainDepartureEvent;return Object.keys(x).sort().join(',')==='aircraftId,eventId,from,liveState,observedAt,reason,registration,result,routeId,to,type,uncertainEventId'&&validId(x.eventId)&&x.type==='departure-uncertain-resolved'&&validId(x.uncertainEventId)&&validId(x.aircraftId)&&typeof x.registration==='string'&&x.registration.length>0&&x.registration.length<=100&&validId(x.routeId)&&validOrigin(x.from)&&validOrigin(x.to)&&x.from!==x.to&&typeof x.observedAt==='string'&&Number.isFinite(Date.parse(x.observedAt))&&Date.parse(x.observedAt)<=now.getTime()&&x.result==='live_state_verified'&&['ready','inflight'].includes(x.liveState)&&x.reason==='STRICTLY_NEWER_VERIFIED_LIVE_STATE';};
+export function unresolvedDepartureKeys(journal:Journal):ReadonlySet<string>{
+  const resolved=new Set((journal.events||[]).filter((e):e is ResolvedUncertainDepartureEvent=>e.type==='departure-uncertain-resolved').map(e=>e.uncertainEventId));
+  return new Set((journal.events||[]).filter((e):e is UncertainDepartureEvent=>e.type==='departure-uncertain'&&!resolved.has(e.eventId)).map(e=>e.aircraftId+':'+e.routeId));
+}
 export async function readUnresolvedDepartureKeys(directory:string,scope:string,now=new Date()):Promise<ReadonlySet<string>>{return unresolvedDepartureKeys(validateReturnJournal(JSON.parse(await readFile(join(directory,'return-journal.json'),'utf8')),scope,now));}
 const validUncertainSupplyEvent=(v:unknown,now:Date):v is UncertainSupplyEvent=>{if(!v||typeof v!=='object')return false;const x=v as UncertainSupplyEvent;return Object.keys(x).sort().join(',')==='eventId,kind,observedAt,pricePer1000,quantity,quotedCost,reason,result,sourceRunId,type'&&validId(x.eventId)&&x.type==='supply-uncertain'&&['fuel','co2'].includes(x.kind)&&typeof x.observedAt==='string'&&Number.isFinite(Date.parse(x.observedAt))&&Date.parse(x.observedAt)<=now.getTime()&&x.result==='outcome_unknown'&&/^[A-Z0-9_:-]{1,160}$/.test(x.reason)&&validId(x.sourceRunId)&&Number.isSafeInteger(x.pricePer1000)&&x.pricePer1000>0&&Number.isSafeInteger(x.quantity)&&x.quantity>0&&Number.isSafeInteger(x.quotedCost)&&x.quotedCost>0;};
 const validUncertainRouteEvent=(v:unknown,now:Date):v is UncertainRouteEvent=>{if(!v||typeof v!=='object')return false;const x=v as UncertainRouteEvent;return Object.keys(x).sort().join(',')==='aircraftId,eventId,observedAt,previousFrom,previousRouteId,previousTo,reason,registration,result,sourceRunId,targetAirportId,targetFrom,targetTo,type'&&validId(x.eventId)&&x.type==='route-uncertain'&&validId(x.aircraftId)&&typeof x.registration==='string'&&x.registration.length>0&&x.registration.length<=100&&validId(x.previousRouteId)&&validOrigin(x.previousFrom)&&validOrigin(x.previousTo)&&x.previousFrom!==x.previousTo&&validOrigin(x.targetFrom)&&validOrigin(x.targetTo)&&x.targetFrom!==x.targetTo&&validId(x.targetAirportId)&&typeof x.observedAt==='string'&&Number.isFinite(Date.parse(x.observedAt))&&Date.parse(x.observedAt)<=now.getTime()&&x.result==='outcome_unknown'&&x.reason==='NO_RETRY_AFTER_ROUTE_MUTATION_ATTEMPT'&&validId(x.sourceRunId);};
@@ -269,8 +274,14 @@ export function validateReturnJournal(value: unknown, scope: string, now: Date):
     seen.add(key(e));
   }
   const eventIds=new Set<string>();
-  for(const e of data.events||[]){const type=(e as any)?.type;const ok=type==='departure'?validDepartureEvent(e,now):type==='departure-uncertain'?validUncertainDepartureEvent(e,now):type==='supply-uncertain'?validUncertainSupplyEvent(e,now):type==='route-uncertain'?validUncertainRouteEvent(e,now):type==='pricing-uncertain'?validUncertainPricingEvent(e,now):type==='arrival-observed'?validArrivalObservationEvent(e,now):type==='flight-history-anchor'?validFlightHistoryAnchor(e,now):false;if(!ok||eventIds.has((e as any).eventId))throw new Error('JOURNAL_INVALID');eventIds.add((e as any).eventId);}
+  for(const e of data.events||[]){const type=(e as any)?.type;const ok=type==='departure'?validDepartureEvent(e,now):type==='departure-uncertain'?validUncertainDepartureEvent(e,now):type==='departure-uncertain-resolved'?validResolvedUncertainDepartureEvent(e,now):type==='supply-uncertain'?validUncertainSupplyEvent(e,now):type==='route-uncertain'?validUncertainRouteEvent(e,now):type==='pricing-uncertain'?validUncertainPricingEvent(e,now):type==='arrival-observed'?validArrivalObservationEvent(e,now):type==='flight-history-anchor'?validFlightHistoryAnchor(e,now):false;if(!ok||eventIds.has((e as any).eventId))throw new Error('JOURNAL_INVALID');eventIds.add((e as any).eventId);}
   for(const e of data.events||[])if(e.type==='arrival-observed'){const source=(data.events||[]).filter((x):x is DepartureHistoryEvent=>x.type==='departure'&&x.eventId===e.departureEventId);if(source.length!==1)throw new Error('JOURNAL_INVALID');const d=source[0];if(d.aircraftId!==e.aircraftId||d.registration!==e.registration||d.routeId!==e.routeId||d.from!==e.from||d.to!==e.to||d.observedAt!==e.departedAt)throw new Error('JOURNAL_INVALID');}
+  for(const e of data.events||[])if(e.type==='departure-uncertain-resolved'){
+    const source=(data.events||[]).filter((x):x is UncertainDepartureEvent=>x.type==='departure-uncertain'&&x.eventId===e.uncertainEventId);
+    if(source.length!==1)throw new Error('JOURNAL_INVALID');
+    const d=source[0],samePair=[d.from,d.to].sort().join(':')===[e.from,e.to].sort().join(':');
+    if(d.aircraftId!==e.aircraftId||d.registration!==e.registration||d.routeId!==e.routeId||!samePair||Date.parse(e.observedAt)<=Date.parse(d.observedAt))throw new Error('JOURNAL_INVALID');
+  }
   const uiIds=new Set<string>();for(const e of data.uiHealthObservations||[]){if(!validUiHealthObservation(e,now)||uiIds.has(e.eventId))throw new Error('JOURNAL_INVALID');uiIds.add(e.eventId);}
   const supplyIds=new Set<string>();for(const e of data.supplyObservations||[]){if(!validSupplyObservation(e,now)||supplyIds.has(e.eventId))throw new Error('JOURNAL_INVALID');supplyIds.add(e.eventId);}
   const holdIds=new Set<string>();for(const e of data.holdObservations||[]){if(!validHoldObservation(e,now)||holdIds.has(e.eventId))throw new Error('JOURNAL_INVALID');holdIds.add(e.eventId);}
@@ -459,6 +470,37 @@ export async function appendUncertainRouteMutations(directory:string,scope:strin
   catch{throw new Error('JOURNAL_SAVE_FAILED: quarentena de reroute incerto nao persistida.');}
   finally{await unlink(temporary).catch(()=>undefined);}
   return added;
+ },join(root,'.return-journal.lock'));
+}
+
+export async function appendResolvedUncertainDepartures(directory:string,scope:string,collection:CollectionResult,now=new Date()):Promise<number>{
+ if(!validId(scope)||!Number.isFinite(now.getTime())||!collection||!Array.isArray(collection.aircraft))throw new Error('JOURNAL_CONFIG_INVALID');
+ if(!collection.complete)return 0;
+ const root=resolve(directory);await mkdir(root,{recursive:true});
+ return withRunLock(async()=>{
+  const filename=join(root,'return-journal.json');const data=validateReturnJournal(JSON.parse(await readFile(filename,'utf8')),scope,now);
+  const events=data.events?[...data.events]:[];
+  const resolved=new Set(events.filter((e):e is ResolvedUncertainDepartureEvent=>e.type==='departure-uncertain-resolved').map(e=>e.uncertainEventId));
+  const counts=new Map<string,number>();for(const a of collection.aircraft)counts.set(a.aircraftId,(counts.get(a.aircraftId)||0)+1);
+  let added=0;
+  for(const uncertain of events.filter((e):e is UncertainDepartureEvent=>e.type==='departure-uncertain'&&!resolved.has(e.eventId))){
+    const matches=collection.aircraft.filter(a=>a.aircraftId===uncertain.aircraftId&&a.routeId===uncertain.routeId);
+    if(matches.length!==1||counts.get(uncertain.aircraftId)!==1)continue;
+    const a=matches[0],observed=Date.parse(a.observedAt),sourceObserved=Date.parse(uncertain.observedAt);
+    const pairMatches=[a.from,a.to].sort().join(':')===[uncertain.from,uncertain.to].sort().join(':');
+    const readyVerified=a.state==='ready'&&!a.issue&&!!a.capacity&&!!a.remaining&&!!a.dailyTotal&&typeof a.departureControlShape==='string'&&a.departureControlShape.length>0;
+    const inflightVerified=a.state==='inflight'&&!a.issue&&!!a.capacity&&!!a.onboard&&!!a.timing;
+    if(a.registration!==uncertain.registration||!pairMatches||!Number.isFinite(observed)||observed<=sourceObserved||observed>now.getTime()||(!readyVerified&&!inflightVerified))continue;
+    const event:ResolvedUncertainDepartureEvent={eventId:`res_${uncertain.sourceRunId}_${uncertain.aircraftId}_${uncertain.routeId}`,type:'departure-uncertain-resolved',
+      uncertainEventId:uncertain.eventId,aircraftId:uncertain.aircraftId,registration:uncertain.registration,routeId:uncertain.routeId,from:a.from,to:a.to,
+      observedAt:a.observedAt,result:'live_state_verified',liveState:a.state as 'ready'|'inflight',reason:'STRICTLY_NEWER_VERIFIED_LIVE_STATE'};
+    if(!validResolvedUncertainDepartureEvent(event,now))throw new Error('JOURNAL_UNCERTAIN_DEPARTURE_RESOLUTION_INVALID');
+    if(events.some(e=>e.eventId===event.eventId))continue;
+    events.push(event);resolved.add(uncertain.eventId);added++;
+  }
+  if(!added)return 0;if(events.length>100000)throw new Error('JOURNAL_FULL: nao descartar historico automaticamente.');data.events=events;
+  const temporary=join(root,`return-journal.${randomUUID()}.tmp`);try{const file=await open(temporary,'wx',0o600);try{await file.writeFile(JSON.stringify(data,null,2)+'\n');await file.sync();}finally{await file.close();}await rename(temporary,filename);}
+  catch{throw new Error('JOURNAL_SAVE_FAILED: resolucao de departure incerto nao persistida.');}finally{await unlink(temporary).catch(()=>undefined);}return added;
  },join(root,'.return-journal.lock'));
 }
 
