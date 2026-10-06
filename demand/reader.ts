@@ -10,10 +10,28 @@ import { departureControlShape } from './departure-control-evidence';
 import { readCurrentRouteFieldDiagnostics } from '../optimization/current-route-diagnostics';
 import { readFlightHistoryEvidence } from '../optimization/flight-history';
 import { routePageLimit } from './navigation';
+import { GeneralUtils } from '../utils/general.utils';
 
 interface RouteCard {
   routeId: string; aircraftId: string; registration: string; routeLabel: string;
   from: string; to: string; ready: boolean; inflight: boolean; pax: boolean; onboardText: string;
+}
+
+function detailFailureCode(error:unknown):string {
+  const message=error instanceof Error?error.message:'';
+  if(message==='UI_CONTROL_OBSCURED')return 'UI_CONTROL_OBSCURED';
+  if(message==='INTERACTIVE_CHALLENGE_DETECTED_STOP')return 'INTERACTIVE_CHALLENGE_DETECTED_STOP';
+  if(message==='Invalid identity')return 'IDENTITY_INVALID';
+  if(message==='Ambiguous aircraft link')return 'AIRCRAFT_LINK_AMBIGUOUS';
+  if(message==='Unverified details callback')return 'DETAILS_CALLBACK_UNVERIFIED';
+  if(message==='Not ready / grounded')return 'READY_STATE_UNVERIFIED';
+  if(message==='Inflight identity not confirmed')return 'INFLIGHT_IDENTITY_UNVERIFIED';
+  if(message==='Registration mismatch')return 'REGISTRATION_MISMATCH';
+  if(message==='Route mismatch')return 'ROUTE_MISMATCH';
+  if(message==='Inflight direction mismatch')return 'INFLIGHT_DIRECTION_MISMATCH';
+  if(/Missing\/ambiguous cabin|Numero ausente|Numero fora|Esperada demanda|Demanda restante/i.test(message))return 'CABIN_OR_DEMAND_PARSE_UNVERIFIED';
+  if(/Timeout|waiting for|expect\(/i.test(message))return 'DETAILS_UI_TIMEOUT';
+  return 'DETAILS_UNCLASSIFIED';
 }
 /** Read-only navigation using DOM inspected on 2026-09-29. No direct HTTP requests. */
 export class DemandReader {
@@ -58,10 +76,13 @@ export class DemandReader {
           if (!card.ready && !(this.includeInflightDetails && card.inflight)) continue;
           try {
             await this.readDetails(card, item);
-          } catch {
-            // Do not serialize exception messages, HTML, URLs, session data or credentials.
+          } catch (error) {
+            const reason=detailFailureCode(error);
+            if(reason==='INTERACTIVE_CHALLENGE_DETECTED_STOP')throw error;
+            // Never serialize raw exception messages, HTML, URLs, session data or credentials.
             item.state = card.inflight ? 'inflight' : 'unavailable'; item.issue = 'Falha de carregamento, identidade ou leitura dos detalhes.';
-            result.warnings.push(`DETAILS_UNAVAILABLE:${/^\d+$/.test(card.routeId) ? card.routeId : 'invalid-id'}`);
+            const route=/^\d+$/.test(card.routeId) ? card.routeId : 'invalid-id';
+            result.warnings.push(`DETAILS_UNAVAILABLE:${route}`,`DETAILS_REASON:${route}:${reason}`);
           } finally {
             const back = this.page.locator('#route-name .glyphicons-chevron-left');
             if (await back.isVisible()) await back.click({ timeout: this.timeout });
@@ -133,7 +154,7 @@ export class DemandReader {
     const callback = (await link.getAttribute('onclick') || '').replace(/\s/g, '');
     const expected = `playSound('neutral_click');Ajax('fleet_details.php?id=${card.aircraftId}','detailsAction');if(intro==0){$('#routeAction').hide();}`;
     if (callback !== expected) throw new Error('Unverified details callback');
-    await link.click({ timeout: this.timeout });
+    await GeneralUtils.moveAndClick(this.page, link, this.timeout);
     const details = this.page.locator('#detailsAction');
     await details.waitFor({ state: 'visible', timeout: this.timeout });
     const depart = details.locator('#routeViewDepart');
