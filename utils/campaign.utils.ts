@@ -87,6 +87,19 @@ export class CampaignUtils {
         return locator.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
     }
 
+    private async uniqueVisibleEcoOption(): Promise<Locator | null> {
+        const cells=this.page.locator('td:visible');
+        const matches:number[]=[];
+        const count=await cells.count();
+        for(let i=0;i<count;i++){
+            const cell=cells.nth(i);
+            const text=(await cell.innerText().catch(()=>'' )).replace(/\s+/g,' ').trim();
+            if(/eco/i.test(text)&&/friendly/i.test(text)) matches.push(i);
+        }
+        if(matches.length!==1) return null;
+        return cells.nth(matches[0]);
+    }
+
     private async ensureEcoFriendly(): Promise<CampaignItemEvidence> {
         const active = this.activeEcoLocator();
         if (await this.verifyActive(active, 'campaign:eco:precheck')) {
@@ -95,11 +108,28 @@ export class CampaignUtils {
         }
 
         const newCampaignButton = this.page.locator('button:visible').filter({ hasText: /New campaign/i }).first();
+        if(await newCampaignButton.count()!==1){
+            return { required:true,activeBefore:false,purchaseAttempted:false,verifiedActive:false,
+                status:'unverified',reason:'NEW_CAMPAIGN_CONTROL_NOT_UNIQUE_VISIBLE' };
+        }
         await this.moveAndClick(newCampaignButton);
-        await GeneralUtils.randomSleep(600, 1000);
-        const ecoFriendlyCell = this.page.locator('td:visible').filter({ hasText: /Eco[\s-]*friendly\s+Increases/i }).first();
+        await GeneralUtils.randomSleep(700, 1200);
+
+        // The AM4 label has varied between "Eco-friendly Increases",
+        // "Eco friendly Increases" and shorter localized forms. Never guess:
+        // first re-check whether the campaign became active, then require one
+        // and only one visible Eco/friendly option before clicking it.
+        if(await this.isVisible(active,700)){
+            return { required:true,activeBefore:true,purchaseAttempted:false,verifiedActive:true,
+                status:'already_active',reason:'ACTIVE_AFTER_NEW_CAMPAIGN_VIEW' };
+        }
+        const ecoFriendlyCell=await this.uniqueVisibleEcoOption();
+        if(!ecoFriendlyCell){
+            return { required:true,activeBefore:false,purchaseAttempted:false,verifiedActive:false,
+                status:'unverified',reason:'ECO_OPTION_NOT_UNIQUE_VISIBLE' };
+        }
         await this.moveAndClick(ecoFriendlyCell);
-        await GeneralUtils.randomSleep(600, 1000);
+        await GeneralUtils.randomSleep(700, 1200);
         const buyButtons = this.page.locator('button:visible').filter({ hasText: /^\$/ });
         if (await buyButtons.count() !== 1) {
             return { required: true, activeBefore: false, purchaseAttempted: false, verifiedActive: false,
