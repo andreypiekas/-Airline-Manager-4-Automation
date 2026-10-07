@@ -73,6 +73,54 @@ test('eco purchase accepts space-separated current AM4 option label',async({page
  });
 });
 
+test('eco purchase accepts a shortened unique current label after New campaign',async({page})=>{
+ await withReputation('false',async()=>{
+  await page.setContent(`
+   <button>Marketing</button>
+   <button>New campaign</button>
+   <table id="campaigns"><tr><td>Eco-friendly boost</td></tr></table>
+   <button id="buyEco">$</button>
+   <script>
+    document.querySelector('#buyEco').onclick=()=>{
+      const row=document.createElement('tr');
+      row.innerHTML='<td>Eco friendly</td>';
+      document.querySelector('#campaigns').appendChild(row);
+    };
+   </script>
+  `);
+  const evidence=await new CampaignUtils(page).createCampaign();
+  expect(evidence.ecoFriendly).toMatchObject({
+    status:'purchased_verified',verifiedActive:true,purchaseAttempted:true
+  });
+  expect(evidence.departureAuthorized).toBe(true);
+ });
+});
+
+test('ambiguous visible Eco options fail closed before any option click',async({page})=>{
+ await withReputation('false',async()=>{
+  await page.setContent(`
+   <button>Marketing</button>
+   <button id="newCampaign">New campaign</button>
+   <table>
+    <tr><td id="eco1">Eco-friendly boost</td></tr>
+    <tr><td id="eco2">Eco friendly special</td></tr>
+   </table>
+   <script>
+    window.optionClicks=0;
+    document.querySelector('#eco1').onclick=()=>window.optionClicks++;
+    document.querySelector('#eco2').onclick=()=>window.optionClicks++;
+   </script>
+  `);
+  const evidence=await new CampaignUtils(page).createCampaign();
+  expect(evidence.ecoFriendly).toMatchObject({
+    status:'unverified',verifiedActive:false,purchaseAttempted:false,
+    reason:'ECO_OPTION_NOT_UNIQUE_VISIBLE'
+  });
+  expect(evidence.departureAuthorized).toBe(false);
+  expect(await page.evaluate(()=>(window as any).optionClicks)).toBe(0);
+ });
+});
+
 test('eco campaign is re-read and confirmed after purchase',async({page})=>{
  await withReputation('false',async()=>{
   await page.setContent(`
