@@ -231,7 +231,7 @@ test('unchanged completed-flight history does not append a redundant anchor on t
 test('diagnostic flight-history anchors preserve transport capacity for critical journal events',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'am4-anchor-budget-'));
  try{
-  const entries=Array.from({length:5200},(_,i)=>({
+  const entries=Array.from({length:5500},(_,i)=>({
    aircraftId:'1',origin:'AAA',flightId:'f'+i,reviewedAt:'2026-10-06T00:00:00.000Z',decision:'keep_route'
   }));
   await writeFile(join(dir,'return-journal.json'),JSON.stringify({schemaVersion:1,scope:'company-test',entries}));
@@ -239,7 +239,7 @@ test('diagnostic flight-history anchors preserve transport capacity for critical
   const row={relativeTime:'21 hours ago',from:'AAA',to:'BBB',registrationLabel:'FAST',co2Quotas:1,onboard:{Y:1,J:0,F:0},fuelLbs:2,revenue:3};
   const collection:any={aircraft:[{aircraftId:'1',registration:'FAST',operational:{cycles:190},flightHistory:{status:'observed',observedAt:now.toISOString(),entries:[row,row,row,row]}}]};
   const coverage:any[]=[{aircraftId:'1',historyStatus:'observed',visibleEntries:4,coversReset:false}];
-  expect(Buffer.byteLength(JSON.stringify({schemaVersion:1,scope:'company-test',entries}))).toBeGreaterThan(600000);
+  expect(Buffer.byteLength(JSON.stringify({schemaVersion:1,scope:'company-test',entries}))).toBeGreaterThan(650000);
   expect(await appendFlightHistoryAnchors(dir,'company-test','budget1',collection,coverage,now)).toBe(0);
   const saved=JSON.parse(await readFile(join(dir,'return-journal.json'),'utf8'));
   expect(saved.events).toBeUndefined();
