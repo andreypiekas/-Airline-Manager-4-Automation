@@ -190,6 +190,8 @@ const liveAnchorFromAircraft=(aircraft:AircraftSnapshot,now:Date):FlightHistoryA
 };
 const sameAnchorPayload=(a:FlightHistoryAnchorEvent,b:FlightHistoryAnchorEvent)=>a.observedAt===b.observedAt&&a.cycles===b.cycles&&
  a.rows.length===b.rows.length&&a.rows.every((r,i)=>flightHistoryRowIdentity(r)===flightHistoryRowIdentity(b.rows[i]));
+const sameCompletedFlightHistory=(a:FlightHistoryAnchorEvent,b:FlightHistoryAnchorEvent)=>a.cycles===b.cycles&&
+ a.rows.length===b.rows.length&&a.rows.every((r,i)=>flightHistoryRowIdentity(r)===flightHistoryRowIdentity(b.rows[i]));
 /**
  * Extends persisted continuity only when the current live Flight History is itself
  * a valid newest anchor. This remains diagnostic-only: it cannot authorize route
@@ -291,7 +293,20 @@ export async function appendFlightHistoryAnchors(directory:string,scope:string,r
  if(!validId(scope)||!validId(runId)||!Number.isFinite(now.getTime())||!collection||!Array.isArray(collection.aircraft)||!Array.isArray(coverage))throw new Error('JOURNAL_CONFIG_INVALID');
  const wanted=new Set(coverage.filter(x=>x?.coversReset===false&&x?.historyStatus==='observed'&&Number.isSafeInteger(x?.visibleEntries)&&x.visibleEntries>0).map(x=>x.aircraftId));if(!wanted.size)return 0;
  const root=resolve(directory);await mkdir(root,{recursive:true});return withRunLock(async()=>{const filename=join(root,'return-journal.json');let data:Journal;try{data=validateReturnJournal(JSON.parse(await readFile(filename,'utf8')),scope,now);}catch{throw new Error('JOURNAL_UNAVAILABLE: ancora de historico bloqueada.');}const list=data.events?[...data.events]:[];let added=0;
- for(const a of collection.aircraft){if(!wanted.has(a?.aircraftId)||a?.flightHistory?.status!=='observed'||!Number.isSafeInteger(a?.operational?.cycles)||a.operational.cycles<0)continue;const rows=(a.flightHistory.entries||[]).slice(-8).map((r:any)=>({relativeTime:r.relativeTime,from:r.from,to:r.to,co2Quotas:r.co2Quotas,onboard:{...r.onboard},fuelLbs:r.fuelLbs,revenue:r.revenue}));if(!rows.length)continue;const event:FlightHistoryAnchorEvent={eventId:`hist_${runId}_${a.aircraftId}`,type:'flight-history-anchor',aircraftId:a.aircraftId,registration:a.registration,observedAt:a.flightHistory.observedAt,cycles:a.operational.cycles,rows};if(!validFlightHistoryAnchor(event,now))throw new Error('JOURNAL_FLIGHT_HISTORY_ANCHOR_INVALID');if(list.some(x=>x.eventId===event.eventId))continue;list.push(event);added++;}
+ for(const a of collection.aircraft){
+  if(!wanted.has(a?.aircraftId)||a?.flightHistory?.status!=='observed'||!Number.isSafeInteger(a?.operational?.cycles)||a.operational.cycles<0)continue;
+  const rows=(a.flightHistory.entries||[]).slice(-8).map((r:any)=>({relativeTime:r.relativeTime,from:r.from,to:r.to,co2Quotas:r.co2Quotas,onboard:{...r.onboard},fuelLbs:r.fuelLbs,revenue:r.revenue}));
+  if(!rows.length)continue;
+  const event:FlightHistoryAnchorEvent={eventId:`hist_${runId}_${a.aircraftId}`,type:'flight-history-anchor',aircraftId:a.aircraftId,registration:a.registration,observedAt:a.flightHistory.observedAt,cycles:a.operational.cycles,rows};
+  if(!validFlightHistoryAnchor(event,now))throw new Error('JOURNAL_FLIGHT_HISTORY_ANCHOR_INVALID');
+  if(list.some(x=>x.eventId===event.eventId))continue;
+  const previous=list.filter((x):x is FlightHistoryAnchorEvent=>x.type==='flight-history-anchor'&&x.aircraftId===event.aircraftId&&x.registration===event.registration)
+    .sort((x,y)=>Date.parse(x.observedAt)-Date.parse(y.observedAt)).at(-1);
+  // Relative-age labels move as time passes. They are not new completed-flight evidence.
+  // Persist only when cycles or the actual completed-flight rows changed.
+  if(previous&&sameCompletedFlightHistory(previous,event))continue;
+  list.push(event);added++;
+ }
  if(!added)return 0;if(list.length>100000)throw new Error('JOURNAL_FULL: nao descartar historico automaticamente.');data.events=list;const temporary=join(root,`return-journal.${randomUUID()}.tmp`);try{const file=await open(temporary,'wx',0o600);try{await file.writeFile(JSON.stringify(data,null,2)+'\n');await file.sync();}finally{await file.close();}await rename(temporary,filename);}catch{throw new Error('JOURNAL_SAVE_FAILED: ancora de historico nao persistida.');}finally{await unlink(temporary).catch(()=>undefined);}return added;},join(root,'.return-journal.lock'));
 }
 export async function appendUiHealthObservation(directory:string,scope:string,observedAt:string,surfaces:string[]):Promise<number>{const now=new Date(observedAt);if(!validId(scope)||!Number.isFinite(now.getTime()))throw new Error('JOURNAL_CONFIG_INVALID');const root=resolve(directory);return withRunLock(async()=>{const filename=join(root,'return-journal.json');const data=validateReturnJournal(JSON.parse(await readFile(filename,'utf8')),scope,now);const list=data.uiHealthObservations?[...data.uiHealthObservations]:[];const event:UiHealthObservation={eventId:'ui_'+observedAt.replace(/\D/g,'').slice(0,14),type:'ui-health',observedAt,status:'healthy',surfaces:[...surfaces]};if(!validUiHealthObservation(event,now))throw new Error('JOURNAL_UI_HEALTH_INVALID');if(list.some(x=>x.eventId===event.eventId))return 0;list.push(event);data.uiHealthObservations=list;const temporary=join(root,`return-journal.${randomUUID()}.tmp`);try{const file=await open(temporary,'wx',0o600);try{await file.writeFile(JSON.stringify(data,null,2)+'\n');await file.sync();}finally{await file.close();}await rename(temporary,filename);}finally{await unlink(temporary).catch(()=>undefined);}return 1;},join(root,'.return-journal.lock'));}
