@@ -33,6 +33,9 @@ export interface JournalOptions {
   maxAgeSeconds?: number;
 }
 const completed = (d: string): d is CompletedDecision => ['would_reroute', 'keep_route', 'hold'].includes(d);
+// Flight-history anchors are diagnostic/read-only evidence. Keep a large transport
+// reserve for safety-critical departure, route, pricing and supply events.
+const FLIGHT_HISTORY_ANCHOR_BUDGET_BYTES = 650000;
 const validId = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(v);
 const validOrigin = (v: unknown): v is string => typeof v === 'string' && /^[A-Z]{3}$/.test(v);
 const key = (e: Pick<Entry, 'aircraftId' | 'origin' | 'flightId'>) => JSON.stringify([e.aircraftId, e.origin, e.flightId]);
@@ -305,6 +308,8 @@ export async function appendFlightHistoryAnchors(directory:string,scope:string,r
   // Relative-age labels move as time passes. They are not new completed-flight evidence.
   // Persist only when cycles or the actual completed-flight rows changed.
   if(previous&&sameCompletedFlightHistory(previous,event))continue;
+  const projected={...data,events:[...list,event]};
+  if(Buffer.byteLength(JSON.stringify(projected))>FLIGHT_HISTORY_ANCHOR_BUDGET_BYTES)continue;
   list.push(event);added++;
  }
  if(!added)return 0;if(list.length>100000)throw new Error('JOURNAL_FULL: nao descartar historico automaticamente.');data.events=list;const temporary=join(root,`return-journal.${randomUUID()}.tmp`);try{const file=await open(temporary,'wx',0o600);try{await file.writeFile(JSON.stringify(data,null,2)+'\n');await file.sync();}finally{await file.close();}await rename(temporary,filename);}catch{throw new Error('JOURNAL_SAVE_FAILED: ancora de historico nao persistida.');}finally{await unlink(temporary).catch(()=>undefined);}return added;},join(root,'.return-journal.lock'));
