@@ -231,7 +231,7 @@ test('unchanged completed-flight history does not append a redundant anchor on t
 test('diagnostic flight-history anchors preserve transport capacity for critical journal events',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'am4-anchor-budget-'));
  try{
-  const entries=Array.from({length:5500},(_,i)=>({
+  const entries=Array.from({length:5700},(_,i)=>({
    aircraftId:'1',origin:'AAA',flightId:'f'+i,reviewedAt:'2026-10-06T00:00:00.000Z',decision:'keep_route'
   }));
   await writeFile(join(dir,'return-journal.json'),JSON.stringify({schemaVersion:1,scope:'company-test',entries}));
