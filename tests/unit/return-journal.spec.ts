@@ -210,6 +210,24 @@ test('compact flight-history anchor persists only uncovered observed aircraft',a
 });
 
 
+test('unchanged completed-flight history does not append a redundant anchor on the next run',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'am4-anchor-dedupe-'));
+ try{
+  await writeFile(join(dir,'return-journal.json'),JSON.stringify({schemaVersion:1,scope:'company-test',entries:[]}));
+  const row=(relativeTime:string)=>({relativeTime,from:'AAA',to:'BBB',registrationLabel:'FAST',co2Quotas:1,onboard:{Y:1,J:0,F:0},fuelLbs:2,revenue:3});
+  const firstNow=new Date('2026-10-07T00:00:00Z');
+  const first:any={aircraft:[{aircraftId:'1',registration:'FAST',operational:{cycles:190},flightHistory:{status:'observed',observedAt:firstNow.toISOString(),entries:[row('21 hours ago'),row('22 hours ago')]}}]};
+  const coverage:any[]=[{aircraftId:'1',historyStatus:'observed',visibleEntries:2,coversReset:false}];
+  expect(await appendFlightHistoryAnchors(dir,'company-test','run1',first,coverage,firstNow)).toBe(1);
+
+  const secondNow=new Date('2026-10-07T00:30:00Z');
+  const second:any={aircraft:[{aircraftId:'1',registration:'FAST',operational:{cycles:190},flightHistory:{status:'observed',observedAt:secondNow.toISOString(),entries:[row('21.5 hours ago'),row('22.5 hours ago')]}}]};
+  expect(await appendFlightHistoryAnchors(dir,'company-test','run2',second,coverage,secondNow)).toBe(0);
+  const saved=JSON.parse(await readFile(join(dir,'return-journal.json'),'utf8'));
+  expect(saved.events).toHaveLength(1);
+ }finally{await rm(dir,{recursive:true,force:true});}
+});
+
 test('persisted flight-history anchors prove overlap only as read-only evidence',()=>{
  const row=(age:string,from:string,to:string,revenue:number)=>({relativeTime:age,from,to,co2Quotas:10,onboard:{Y:5,J:0,F:0},fuelLbs:100,revenue});
  const previous:any={eventId:'hist_1_1',type:'flight-history-anchor',aircraftId:'1',registration:'FAST',observedAt:'2026-10-03T19:00:00Z',cycles:190,rows:[row('18 hours ago','AAA','BBB',1000),row('19 hours ago','BBB','AAA',900),row('20 hours ago','AAA','BBB',800)]};
