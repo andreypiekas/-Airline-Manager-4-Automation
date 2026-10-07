@@ -69,6 +69,20 @@ test('restore cannot overwrite uncommitted local state',async()=>{
   const remote=server(),client=new GitHubReturnState(options(),remote.request);await client.restore();await append(options().directory);
   await expect(client.restore()).rejects.toThrow('STATE_LOCAL_EXISTS');expect(remote.calls).toHaveLength(1);
 });
+test('pretty local journal may exceed transport limit when compact payload is still below it',async()=>{
+  const remote=server(),client=new GitHubReturnState(options(),remote.request);
+  await client.restore();
+  const p=join(options().directory,'return-journal.json');
+  const data=empty();
+  for(let i=0;i<5500;i++)data.entries.push(event('flight-'+i));
+  const pretty=JSON.stringify(data,null,2)+'\n',compact=JSON.stringify(data)+'\n';
+  expect(Buffer.byteLength(pretty)).toBeGreaterThan(900000);
+  expect(Buffer.byteLength(compact)).toBeLessThan(900000);
+  await writeFile(p,pretty);
+  await expect(client.save()).resolves.toBe('saved');
+  expect(remote.data.entries).toHaveLength(5500);
+});
+
 test('saved history cannot be removed or edited',async()=>{
   const remote=server(),first=new GitHubReturnState(options(),remote.request);await first.restore();await append(options().directory);await first.save();
   const client=new GitHubReturnState(options('runner-2'),remote.request);await client.restore();await writeFile(join(options('runner-2').directory,'return-journal.json'),JSON.stringify(empty()));
