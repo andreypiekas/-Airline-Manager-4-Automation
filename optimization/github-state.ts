@@ -30,8 +30,8 @@ export class GitHubReturnState {
     if (!response.ok) throw new Error(`STATE_HTTP_${response.status}`);
     return await response.json();
   }
-  private parse(text: string) {
-    if (Buffer.byteLength(text) > MAX_BYTES) throw new Error('STATE_TOO_LARGE');
+  private parse(text: string, enforceTransportLimit = true) {
+    if (enforceTransportLimit && Buffer.byteLength(text) > MAX_BYTES) throw new Error('STATE_TOO_LARGE');
     try { return validateReturnJournal(JSON.parse(text), this.options.scope, new Date()); }
     catch { throw new Error('STATE_INVALID'); }
   }
@@ -112,7 +112,10 @@ export class GitHubReturnState {
     const baseline = JSON.parse(await readFile(join(this.options.directory, 'restored.json'), 'utf8'));
     if (baseline.repository !== this.options.repository || baseline.scope !== this.options.scope || baseline.branch !== BRANCH || !/^[a-f0-9]{40}$/.test(baseline.sha)) throw new Error('STATE_BASELINE_INVALID');
     const original = this.parse(canonical(baseline.original));
-    const current = this.parse(await readFile(join(this.options.directory, 'return-journal.json'), 'utf8'));
+    // Local writers intentionally use pretty JSON for diagnostics. The GitHub Contents API
+    // limit applies to the compact payload that is actually transported, not to whitespace
+    // in the runner's local file.
+    const current = this.parse(await readFile(join(this.options.directory, 'return-journal.json'), 'utf8'), false);
     const prefix=(before:unknown[]|undefined,after:unknown[]|undefined)=>{const a=before||[],b=after||[];return b.length>=a.length&&a.every((e,i)=>canonical(e)===canonical(b[i]));};
     if (!prefix(original.entries,current.entries)||!prefix(original.events,current.events)||!prefix(original.supplyObservations,current.supplyObservations)||!prefix(original.holdObservations,current.holdObservations)||!prefix(original.uiHealthObservations,current.uiHealthObservations)) throw new Error('STATE_NOT_APPEND_ONLY');
     const originalEvents=original.events||[],currentEvents=current.events||[];
