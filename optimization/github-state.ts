@@ -4,6 +4,81 @@ import { validateReturnJournal } from './return-journal';
 
 const BRANCH = 'am4-runtime-state';
 const MAX_BYTES = 900000; // Contents API full JSON response is limited to files <= 1 MB.
+const TRANSPORT_HISTORY_LIMITS = {
+  reviewEntriesPerAircraftOrigin: 4,
+  departuresPerAircraft: 8,
+  flightHistoryAnchorsPerAircraft: 3,
+  supplyObservationsPerKind: 48,
+  holdObservationsPerAircraft: 12,
+  uiHealthObservations: 48
+} as const;
+
+const tailPerKey = <T>(items: readonly T[], limit: number, keyOf: (item: T) => string): T[] => {
+  const counts = new Map<string, number>(), keep = new Set<number>();
+  for (let i = items.length - 1; i >= 0; i--) {
+    const key = keyOf(items[i]), count = counts.get(key) || 0;
+    if (count >= limit) continue;
+    counts.set(key, count + 1); keep.add(i);
+  }
+  return items.filter((_, i) => keep.has(i));
+};
+
+/**
+ * Bounds transport growth without weakening safety state.
+ *
+ * Safety-critical uncertain mutation events and their resolution records are
+ * always preserved. Historical observations are intentionally bounded because
+ * their consumers need only recent evidence; losing older observations merely
+ * falls back to conservative/default behavior.
+ */
+export function compactReturnJournalForTransport(journal: any): any {
+  const compacted = { ...journal };
+
+  compacted.entries = tailPerKey(
+    Array.isArray(journal.entries) ? journal.entries : [],
+    TRANSPORT_HISTORY_LIMITS.reviewEntriesPerAircraftOrigin,
+    (e: any) => String(e?.aircraftId || '') + ':' + String(e?.origin || '')
+  );
+
+  if (Array.isArray(journal.events)) {
+    const departures = tailPerKey(
+      journal.events.filter((e: any) => e?.type === 'departure'),
+      TRANSPORT_HISTORY_LIMITS.departuresPerAircraft,
+      (e: any) => String(e?.aircraftId || '')
+    );
+    const departureIds = new Set(departures.map((e: any) => e.eventId));
+    const anchors = tailPerKey(
+      journal.events.filter((e: any) => e?.type === 'flight-history-anchor'),
+      TRANSPORT_HISTORY_LIMITS.flightHistoryAnchorsPerAircraft,
+      (e: any) => String(e?.aircraftId || '')
+    );
+    const arrivals = journal.events.filter(
+      (e: any) => e?.type === 'arrival-observed' && departureIds.has(e.departureEventId)
+    );
+    const safetyEvents = journal.events.filter(
+      (e: any) => !['departure', 'arrival-observed', 'flight-history-anchor'].includes(e?.type)
+    );
+    const retained = new Set(
+      [...departures, ...anchors, ...arrivals, ...safetyEvents].map((e: any) => e.eventId)
+    );
+    compacted.events = journal.events.filter((e: any) => retained.has(e.eventId));
+  }
+
+  if (Array.isArray(journal.supplyObservations)) compacted.supplyObservations = tailPerKey(
+    journal.supplyObservations,
+    TRANSPORT_HISTORY_LIMITS.supplyObservationsPerKind,
+    (e: any) => String(e?.kind || '')
+  );
+  if (Array.isArray(journal.holdObservations)) compacted.holdObservations = tailPerKey(
+    journal.holdObservations,
+    TRANSPORT_HISTORY_LIMITS.holdObservationsPerAircraft,
+    (e: any) => String(e?.aircraftId || '')
+  );
+  if (Array.isArray(journal.uiHealthObservations)) compacted.uiHealthObservations =
+    journal.uiHealthObservations.slice(-TRANSPORT_HISTORY_LIMITS.uiHealthObservations);
+
+  return compacted;
+}
 export interface StateOptions { repository: string; scope: string; directory: string; token: string }
 type Fetcher = typeof fetch;
 const canonical = (v: unknown) => JSON.stringify(v);
@@ -106,7 +181,7 @@ export class GitHubReturnState {
       const extras=l.slice(b.length).filter((e:any)=>!seen.has(canonical(e)));
       merged[key]=[...r,...extras];
     }
-    return this.parse(canonical(merged));
+    return this.parse(canonical(merged), false);
   }
   async save(): Promise<'unchanged' | 'saved'> {
     const baseline = JSON.parse(await readFile(join(this.options.directory, 'restored.json'), 'utf8'));
@@ -120,21 +195,23 @@ export class GitHubReturnState {
     if (!prefix(original.entries,current.entries)||!prefix(original.events,current.events)||!prefix(original.supplyObservations,current.supplyObservations)||!prefix(original.holdObservations,current.holdObservations)||!prefix(original.uiHealthObservations,current.uiHealthObservations)) throw new Error('STATE_NOT_APPEND_ONLY');
     const originalEvents=original.events||[],currentEvents=current.events||[];
     if(currentEvents.length<originalEvents.length||originalEvents.some((e,i)=>canonical(e)!==canonical(currentEvents[i])))throw new Error('STATE_NOT_APPEND_ONLY');
-    if (canonical(original) === canonical(current)) return 'unchanged';
-    const content = JSON.stringify(current) + '\n';
+    const compacted = this.parse(canonical(compactReturnJournalForTransport(current)));
+    if (canonical(original) === canonical(current) && canonical(compacted) === canonical(current)) return 'unchanged';
+    const content = JSON.stringify(compacted) + '\n';
     if (Buffer.byteLength(content) > MAX_BYTES) throw new Error('STATE_TOO_LARGE');
     // SHA is mandatory: never overwrite unseen remote changes.
     try{
-      await this.api('PUT', { branch: BRANCH, sha: baseline.sha, message: 'chore: persist simulated return reviews [skip ci]', content: Buffer.from(content).toString('base64') });
+      await this.api('PUT', { branch: BRANCH, sha: baseline.sha, message: 'chore: persist compacted return journal [skip ci]', content: Buffer.from(content).toString('base64') });
       return 'saved';
     }catch(error){
       if((error as Error)?.message!=='STATE_HTTP_409')throw error;
       // One bounded reconciliation retry is safe because both sides must still be strict append-only extensions of the restored baseline.
       const remote=await this.readRemoteState();
       const merged=this.mergeAppendOnly(original,current,remote.data);
-      const mergedContent=JSON.stringify(merged)+'\n';
+      const compactedMerged=this.parse(canonical(compactReturnJournalForTransport(merged)));
+      const mergedContent=JSON.stringify(compactedMerged)+'\n';
       if(Buffer.byteLength(mergedContent)>MAX_BYTES)throw new Error('STATE_TOO_LARGE');
-      await this.api('PUT',{branch:BRANCH,sha:remote.sha,message:'chore: reconcile return journal [skip ci]',content:Buffer.from(mergedContent).toString('base64')});
+      await this.api('PUT',{branch:BRANCH,sha:remote.sha,message:'chore: reconcile compacted return journal [skip ci]',content:Buffer.from(mergedContent).toString('base64')});
       return 'saved';
     }
   }
