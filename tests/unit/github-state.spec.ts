@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { mkdtemp, readFile, writeFile, rm, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { GitHubReturnState, StateOptions } from '../../optimization/github-state';
+import { GitHubReturnState, StateOptions, compactReturnJournalForTransport } from '../../optimization/github-state';
 import { analyzeOptimizationWithJournal, optimizationConfig } from '../../optimization/report';
 import { AircraftSnapshot } from '../../demand/types';
 import { RouteReview } from '../../optimization/route-optimizer';
@@ -81,6 +81,42 @@ test('pretty local journal may exceed transport limit when compact payload is st
   await writeFile(p,pretty);
   await expect(client.save()).resolves.toBe('saved');
   expect(remote.data.entries).toHaveLength(5500);
+});
+
+test('transport compaction preserves safety events while bounding historical evidence',()=>{
+  const departure=(i:number,aircraftId='1')=>({eventId:'dep_'+i,type:'departure',aircraftId,registration:'A',routeId:'10',from:'AAA',to:'BBB',observedAt:'2026-01-01T00:00:00.000Z',result:'departed',
+    demand:{availableBefore:{Y:100,J:0,F:0},possiblePassengers:{Y:90,J:0,F:0},occupancyPercentage:90},actualOnboard:{Y:90,J:0,F:0}});
+  const arrival=(i:number,aircraftId='1')=>({eventId:'arr_'+i,type:'arrival-observed',departureEventId:'dep_'+i,aircraftId,registration:'A',routeId:'10',from:'AAA',to:'BBB',departedAt:'2026-01-01T00:00:00.000Z',observedAt:'2026-01-01T01:00:00.000Z',result:'arrived_observed'});
+  const anchor=(i:number)=>({eventId:'hist_'+i,type:'flight-history-anchor',aircraftId:'1',registration:'A',observedAt:'2026-01-01T00:00:00.000Z',cycles:i,rows:[{relativeTime:'1 hour ago',from:'AAA',to:'BBB',co2Quotas:1,onboard:{Y:1,J:0,F:0},fuelLbs:2,revenue:3}]});
+  const uncertain={eventId:'unc_keep',type:'departure-uncertain',aircraftId:'1',registration:'A',routeId:'10',from:'AAA',to:'BBB',observedAt:'2026-01-01T00:00:00.000Z',result:'outcome_unknown',reason:'NO_RETRY_AFTER_CLICK_ATTEMPT:TEST',sourceRunId:'1'};
+  const journal:any={schemaVersion:1,scope,entries:Array.from({length:10},(_,i)=>event('review-'+i)),
+    events:[...Array.from({length:20},(_,i)=>departure(i)),...Array.from({length:20},(_,i)=>arrival(i)),...Array.from({length:10},(_,i)=>anchor(i)),uncertain],
+    supplyObservations:Array.from({length:120},(_,i)=>({eventId:'sup_'+i,type:'supply-observation',kind:i%2?'fuel':'co2',observedAt:'2026-01-01T00:00:00.000Z',pricePer1000:1,holding:1,remainingCapacity:1,balance:1})),
+    holdObservations:Array.from({length:20},(_,i)=>({eventId:'hold_'+i,type:'demand-hold',aircraftId:'1',routeId:'10',observedAt:'2026-01-01T00:00:00.000Z',occupancyPercentage:10,reason:'hold_insufficient'})),
+    uiHealthObservations:Array.from({length:100},(_,i)=>({eventId:'ui_'+i,type:'ui-health',observedAt:'2026-01-01T00:00:00.000Z',status:'healthy',surfaces:['fleet']}))};
+  const compacted=compactReturnJournalForTransport(journal);
+  expect(compacted.entries).toHaveLength(4);
+  expect(compacted.events.filter((e:any)=>e.type==='departure')).toHaveLength(8);
+  expect(compacted.events.filter((e:any)=>e.type==='arrival-observed')).toHaveLength(8);
+  expect(compacted.events.filter((e:any)=>e.type==='flight-history-anchor')).toHaveLength(3);
+  expect(compacted.events).toContainEqual(uncertain);
+  expect(compacted.supplyObservations).toHaveLength(96);
+  expect(compacted.holdObservations).toHaveLength(12);
+  expect(compacted.uiHealthObservations).toHaveLength(48);
+  expect(compacted.events.filter((e:any)=>e.type==='arrival-observed').every((e:any)=>compacted.events.some((d:any)=>d.eventId===e.departureEventId))).toBe(true);
+});
+
+test('save compacts an oversized append-only journal before transport',async()=>{
+  const remote=server(),client=new GitHubReturnState(options(),remote.request);await client.restore();
+  const p=join(options().directory,'return-journal.json'),data:any=empty();
+  const now='2026-01-01T00:00:00.000Z';
+  data.uiHealthObservations=[];
+  for(let i=0;i<7000;i++)data.uiHealthObservations.push({eventId:'ui_'+i,type:'ui-health',observedAt:now,status:'healthy',surfaces:['fleet','details','marketing']});
+  await writeFile(p,JSON.stringify(data));
+  expect(Buffer.byteLength(JSON.stringify(data))).toBeGreaterThan(900000);
+  await expect(client.save()).resolves.toBe('saved');
+  expect(remote.data.uiHealthObservations).toHaveLength(48);
+  expect(Buffer.byteLength(JSON.stringify(remote.data))).toBeLessThan(900000);
 });
 
 test('saved history cannot be removed or edited',async()=>{
