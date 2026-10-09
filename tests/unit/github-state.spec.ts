@@ -80,7 +80,8 @@ test('pretty local journal may exceed transport limit when compact payload is st
   expect(Buffer.byteLength(compact)).toBeLessThan(900000);
   await writeFile(p,pretty);
   await expect(client.save()).resolves.toBe('saved');
-  expect(remote.data.entries).toHaveLength(5500);
+  expect(remote.data.entries).toHaveLength(4);
+  expect(remote.data.entries.map((e:any)=>e.flightId)).toEqual(['flight-5496','flight-5497','flight-5498','flight-5499']);
 });
 
 test('transport compaction preserves safety events while bounding historical evidence',()=>{
@@ -111,7 +112,7 @@ test('save compacts an oversized append-only journal before transport',async()=>
   const p=join(options().directory,'return-journal.json'),data:any=empty();
   const now='2026-01-01T00:00:00.000Z';
   data.uiHealthObservations=[];
-  for(let i=0;i<7000;i++)data.uiHealthObservations.push({eventId:'ui_'+i,type:'ui-health',observedAt:now,status:'healthy',surfaces:['fleet','details','marketing']});
+  for(let i=0;i<7000;i++)data.uiHealthObservations.push({eventId:'ui_'+i,type:'ui-health',observedAt:now,status:'healthy',surfaces:['login','fleet','maintenance','marketing','supplies']});
   await writeFile(p,JSON.stringify(data));
   expect(Buffer.byteLength(JSON.stringify(data))).toBeGreaterThan(900000);
   await expect(client.save()).resolves.toBe('saved');
