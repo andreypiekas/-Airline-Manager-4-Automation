@@ -115,7 +115,7 @@ test('save compacts an oversized append-only journal before transport',async()=>
   await writeFile(p,JSON.stringify(data));
   expect(Buffer.byteLength(JSON.stringify(data))).toBeGreaterThan(900000);
   await expect(client.save()).resolves.toBe('saved');
-  expect(remote.data.uiHealthObservations).toHaveLength(48);
+  expect((remote.data as any).uiHealthObservations).toHaveLength(48);
   expect(Buffer.byteLength(JSON.stringify(remote.data))).toBeLessThan(900000);
 });
 
